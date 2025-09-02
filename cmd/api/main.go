@@ -16,4 +16,10 @@ func main() {
 		logger: logger,
 	}
 
+	err := app.serve()
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
+
 }
