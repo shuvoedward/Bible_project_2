@@ -32,12 +32,12 @@ func NewPassageModel(db *sql.DB) *passageModel {
 }
 
 func (p *passageModel) Get(filters PassageFilters) (*Passage, error) {
-
-	if filters.Verse != 0 {
+	switch {
+	case filters.Verse != 0:
 		return p.getSingleVerse(filters)
-	} else if filters.StartVerse != 0 && filters.EndVerse != 0 {
+	case filters.StartVerse != 0 && filters.EndVerse != 0:
 		return p.getVerseRange(filters)
-	} else {
+	default:
 		return p.getChapter(filters)
 	}
 }
