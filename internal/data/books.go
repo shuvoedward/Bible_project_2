@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+type PassageModel interface {
+	Get(filters PassageFilters) (*Passage, error)
+}
+
 type VerseDetail struct {
 	Number int    `json:"number"`
 	Text   string `json:"text"`
@@ -19,15 +23,15 @@ type Passage struct {
 	Verses  []VerseDetail `json:"verses"`
 }
 
-type PassageModel struct {
+type passageModel struct {
 	DB *sql.DB
 }
 
-func NewPassageModel(db *sql.DB) PassageModel {
-	return PassageModel{DB: db}
+func NewPassageModel(db *sql.DB) *passageModel {
+	return &passageModel{DB: db}
 }
 
-func (p *PassageModel) Get(filters PassageFilters) (*Passage, error) {
+func (p *passageModel) Get(filters PassageFilters) (*Passage, error) {
 
 	if filters.Verse != 0 {
 		return p.getSingleVerse(filters)
@@ -38,7 +42,7 @@ func (p *PassageModel) Get(filters PassageFilters) (*Passage, error) {
 	}
 }
 
-func (p *PassageModel) getSingleVerse(filters PassageFilters) (*Passage, error) {
+func (p *passageModel) getSingleVerse(filters PassageFilters) (*Passage, error) {
 	query := `
 		SELECT v.verse, v.text
 		FROM verses as v
@@ -74,7 +78,7 @@ func (p *PassageModel) getSingleVerse(filters PassageFilters) (*Passage, error) 
 
 }
 
-func (p *PassageModel) getVerseRange(filters PassageFilters) (*Passage, error) {
+func (p *passageModel) getVerseRange(filters PassageFilters) (*Passage, error) {
 	query := `
 			SELECT  v.verse, v.text
 			FROM verses as v
@@ -84,7 +88,7 @@ func (p *PassageModel) getVerseRange(filters PassageFilters) (*Passage, error) {
 	return p.queryVerses(query, filters.Book, filters.Chapter, filters.StartVerse, filters.EndVerse)
 }
 
-func (p *PassageModel) getChapter(filters PassageFilters) (*Passage, error) {
+func (p *passageModel) getChapter(filters PassageFilters) (*Passage, error) {
 	query := `
 			SELECT v.verse, v.text
 			FROM verses as v
@@ -93,7 +97,7 @@ func (p *PassageModel) getChapter(filters PassageFilters) (*Passage, error) {
 	return p.queryVerses(query, filters.Book, filters.Chapter)
 }
 
-func (p *PassageModel) queryVerses(query string, args ...any) (*Passage, error) {
+func (p *passageModel) queryVerses(query string, args ...any) (*Passage, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
