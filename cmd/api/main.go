@@ -4,13 +4,15 @@ import (
 	"database/sql"
 	"log/slog"
 	"os"
+	"shuvoedward/Bible_project/internal/data"
 
 	_ "github.com/lib/pq"
 )
 
 type application struct {
+	books  map[string]struct{}
 	logger *slog.Logger
-	db     *sql.DB
+	models data.Models
 }
 
 func main() {
@@ -22,9 +24,17 @@ func main() {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
+	logger.Info("Successful connection to database")
+
+	books := make(map[string]struct{}, 66)
+	for _, bookTitle := range data.AllBooks {
+		books[bookTitle] = struct{}{}
+	}
 
 	app := application{
+		books:  books,
 		logger: logger,
+		models: data.NewModels(db),
 	}
 
 	err = app.serve()
