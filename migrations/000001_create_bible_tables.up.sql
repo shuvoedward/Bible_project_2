@@ -1,0 +1,12 @@
+CREATE TABLE IF NOT EXISTS books(
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS verses(
+    id SERIAL PRIMARY KEY,
+    book_id INTEGER NOT NULL REFERENCES books(id),
+    chapter INTEGER NOT NULL,  
+    verse INTEGER NOT NULL,
+    text TEXT NOT NULL
+);
