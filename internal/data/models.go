@@ -19,10 +19,12 @@ type PassageFilters struct {
 
 type Models struct {
 	Passages PassageModel
+	Users    UserModel
 }
 
 func NewModels(db *sql.DB) Models {
 	return Models{
 		Passages: NewPassageModel(db),
+		Users:    NewUserModel(db),
 	}
 }
