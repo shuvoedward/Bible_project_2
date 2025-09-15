@@ -39,7 +39,11 @@ func (app *application) serve() error {
 		if err != nil {
 			shutdownError <- err
 		}
-		shutdownError <- err
+
+		app.logger.Info("completing background tasks", "addr", srv.Addr)
+
+		app.wg.Wait()
+		shutdownError <- nil
 	}()
 
 	app.logger.Info("starting server", "addr", srv.Addr, "env", "developer")

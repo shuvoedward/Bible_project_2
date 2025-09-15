@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"os"
 	"shuvoedward/Bible_project/internal/data"
+	"shuvoedward/Bible_project/internal/mailer"
+	"sync"
 
 	_ "github.com/lib/pq"
 )
@@ -29,6 +31,8 @@ type application struct {
 	books  map[string]struct{}
 	logger *slog.Logger
 	models data.Models
+	mailer *mailer.Mailer
+	wg     sync.WaitGroup
 }
 
 func main() {
@@ -60,11 +64,18 @@ func main() {
 		books[bookTitle] = struct{}{}
 	}
 
+	mailer, err := mailer.New(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender)
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
+
 	app := application{
 		config: cfg,
 		books:  books,
 		logger: logger,
 		models: data.NewModels(db),
+		mailer: mailer,
 	}
 
 	err = app.serve()

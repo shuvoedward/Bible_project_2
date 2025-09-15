@@ -130,3 +130,16 @@ func (app *application) readJSON(r *http.Request, dst any) error {
 
 	return nil
 }
+
+func (app *application) backgournd(fn func()) {
+	app.wg.Go(func() {
+		defer func() {
+			pv := recover()
+			if pv != nil {
+				app.logger.Error(fmt.Sprintf("%v", pv))
+			}
+		}()
+
+		fn()
+	})
+}
