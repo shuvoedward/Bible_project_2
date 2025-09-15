@@ -13,6 +13,7 @@ var ErrDuplicateEmail = errors.New("duplicate email")
 
 type UserModel interface {
 	Insert(user *User) error
+	GetByEmail(email string) (*User, error)
 }
 
 type User struct {
@@ -40,6 +41,19 @@ func (p *password) Set(plaintextPassword string) error {
 	p.hash = hash
 
 	return nil
+}
+
+func (p *password) Matches(plaintextPassword string) (bool, error) {
+	err := bcrypt.CompareHashAndPassword(p.hash, []byte(plaintextPassword))
+	if err != nil {
+		switch {
+		case errors.Is(err, bcrypt.ErrMismatchedHashAndPassword):
+			return false, nil
+		default:
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 type userModel struct {
@@ -75,4 +89,37 @@ func (m userModel) Insert(user *User) error {
 
 	return nil
 
+}
+
+func (m userModel) GetByEmail(email string) (*User, error) {
+	query := `
+		SELECT id, created_at, name, email, password_hash, activated, version
+		FROM users 
+		WHERE email = $1`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	var user User
+
+	err := m.DB.QueryRowContext(ctx, query, email).Scan(
+		&user.ID,
+		&user.CreatedAt,
+		&user.Name,
+		&user.Email,
+		&user.Password.hash,
+		&user.Activated,
+		&user.Version,
+	)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &user, nil
 }
