@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -13,7 +14,7 @@ import (
 
 func (app *application) serve() error {
 	srv := &http.Server{
-		Addr:         ":4000",
+		Addr:         fmt.Sprintf(":%d", app.config.port),
 		Handler:      app.routes(),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -38,9 +39,10 @@ func (app *application) serve() error {
 		if err != nil {
 			shutdownError <- err
 		}
+		shutdownError <- err
 	}()
 
-	app.logger.Info("Started server...")
+	app.logger.Info("starting server", "addr", srv.Addr, "env", "developer")
 
 	err := srv.ListenAndServe()
 	if !errors.Is(err, http.ErrServerClosed) {
