@@ -7,6 +7,8 @@ import (
 	"shuvoedward/Bible_project/internal/data"
 	"shuvoedward/Bible_project/internal/validator"
 	"time"
+
+	"github.com/julienschmidt/httprouter"
 )
 
 func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Request) {
@@ -84,6 +86,50 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 	})
 
 	err = app.writeJSON(w, http.StatusCreated, envelope{"user": user}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Request) {
+	params := httprouter.ParamsFromContext(r.Context())
+	token := params.ByName("token")
+
+	v := validator.New()
+
+	// get user associated with the token
+	user, err := app.models.Users.GetForToken(token, data.ScopeActivation)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			v.AddError("token", "invalid or expired token")
+			app.failedValidationResponse(w, r, v.Errors)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	user.Activated = true
+
+	err = app.models.Users.Update(user)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrEditConflict):
+			app.editConflictResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	err = app.models.Tokens.DeleteAllForUser(data.ScopeActivation, user.ID)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"user": user}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

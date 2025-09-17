@@ -7,6 +7,7 @@ import (
 
 var (
 	ErrRecordNotFound = errors.New("record not found")
+	ErrEditConflict   = errors.New("edit conflict")
 )
 
 type PassageFilters struct {
@@ -20,11 +21,13 @@ type PassageFilters struct {
 type Models struct {
 	Passages PassageModel
 	Users    UserModel
+	Tokens   TokenModel
 }
 
 func NewModels(db *sql.DB) Models {
 	return Models{
 		Passages: NewPassageModel(db),
 		Users:    NewUserModel(db),
+		Tokens:   NewTokenModel(db),
 	}
 }

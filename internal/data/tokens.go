@@ -16,6 +16,7 @@ const (
 type TokenModel interface {
 	New(userID int64, ttl time.Duration, scope string) (*Token, error)
 	Insert(token *Token) error
+	DeleteAllForUser(scope string, id int64) error
 }
 
 type Token struct {
@@ -66,5 +67,17 @@ func (m tokenModel) Insert(token *Token) error {
 	defer cancel()
 
 	_, err := m.DB.ExecContext(ctx, query, args...)
+	return err
+}
+
+func (m tokenModel) DeleteAllForUser(scope string, id int64) error {
+	query := `
+		DELETE FROM tokens 
+		WHERE scope = $1 AND user_id = $2`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	_, err := m.DB.ExecContext(ctx, query, scope, id)
 	return err
 }
