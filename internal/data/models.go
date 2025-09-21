@@ -13,7 +13,6 @@ var (
 type PassageFilters struct {
 	Book       string
 	Chapter    int
-	Verse      int
 	StartVerse int
 	EndVerse   int
 }

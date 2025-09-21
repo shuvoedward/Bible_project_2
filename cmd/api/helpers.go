@@ -30,21 +30,11 @@ func (app *application) getPassageFilters(r *http.Request) (*data.PassageFilters
 		return nil, data.ErrRecordNotFound
 	}
 
-	var singleVs, svs, evs int
+	var svs, evs int
 
 	query := r.URL.Query()
 
 	switch {
-	case query.Has("vs"):
-		singleVs, err = strconv.Atoi(query.Get("vs"))
-		if err != nil {
-			return nil, errors.New("invalid verse parameter")
-		}
-		if singleVs < 1 || singleVs > 176 {
-			return nil, data.ErrRecordNotFound
-		}
-		fmt.Print(singleVs)
-
 	case query.Has("svs") && query.Has("evs"):
 		svs, err = strconv.Atoi(query.Get("svs"))
 		if err != nil {
@@ -66,7 +56,6 @@ func (app *application) getPassageFilters(r *http.Request) (*data.PassageFilters
 	return &data.PassageFilters{
 		Book:       book,
 		Chapter:    chapter,
-		Verse:      singleVs,
 		StartVerse: svs,
 		EndVerse:   evs,
 	}, nil

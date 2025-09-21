@@ -7,55 +7,6 @@ import (
 	"github.com/lib/pq"
 )
 
-func TestGetSingleVerse(t *testing.T) {
-	bookID, err := insertTestBook("Genesis")
-	if err != nil {
-		t.Fatalf("failed to insert test book: %v", err)
-	}
-	defer deleteTestBook(bookID)
-
-	// Insert a verse
-	text := "In the beginning, God created the heavens and the earth."
-	verseID, err := insertVerse(bookID, 1, 1, text)
-	if err != nil {
-		t.Fatalf("failed to insert test verse: %v", err)
-	}
-	defer deleteTestVerse(verseID)
-
-	m := NewModels(testDB)
-	filters := PassageFilters{
-		Book:    "Genesis",
-		Chapter: 1,
-		Verse:   1,
-	}
-
-	passage, err := m.Passages.Get(&filters)
-	if err != nil {
-		t.Fatalf("Get() returned an error: %v", err)
-	}
-
-	if passage.Book != "Genesis" {
-		t.Errorf("expected the book to be 'genesis', but got %s", passage.Book)
-	}
-
-	if passage.Chapter != 1 {
-		t.Errorf("expected the chapter to be 1, but got %d", passage.Chapter)
-	}
-
-	if len(passage.Verses) == 0 {
-		t.Errorf("expected 1 verse, but got %d", len(passage.Verses))
-	}
-
-	if passage.Verses[0].Number != 1 {
-		t.Errorf("expected verse number to be 1, but got %d", passage.Verses[0].Number)
-	}
-
-	if passage.Verses[0].Text != text {
-		t.Errorf("unexpected verse text %s", passage.Verses[0].Text)
-	}
-
-}
-
 func TestGetChapter(t *testing.T) {
 	chapter := []string{
 		"In the beginning God created the heavens and the earth.",

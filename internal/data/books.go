@@ -3,12 +3,12 @@ package data
 import (
 	"context"
 	"database/sql"
-	"errors"
+	"fmt"
 	"time"
 )
 
 type PassageModel interface {
-	Get(filters PassageFilters) (*Passage, error)
+	Get(filters *PassageFilters) (*Passage, error)
 }
 
 type VerseDetail struct {
@@ -31,10 +31,8 @@ func NewPassageModel(db *sql.DB) *passageModel {
 	return &passageModel{DB: db}
 }
 
-func (p *passageModel) Get(filters PassageFilters) (*Passage, error) {
+func (p *passageModel) Get(filters *PassageFilters) (*Passage, error) {
 	switch {
-	case filters.Verse != 0:
-		return p.getSingleVerse(filters)
 	case filters.StartVerse != 0 && filters.EndVerse != 0:
 		return p.getVerseRange(filters)
 	default:
@@ -42,43 +40,7 @@ func (p *passageModel) Get(filters PassageFilters) (*Passage, error) {
 	}
 }
 
-func (p *passageModel) getSingleVerse(filters PassageFilters) (*Passage, error) {
-	query := `
-		SELECT v.verse, v.text
-		FROM verses as v
-		JOIN books as b ON v.book_id = b.id
-		WHERE b.name = $1 AND v.chapter = $2 AND v.verse = $3`
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	args := []any{filters.Book, filters.Chapter, filters.Verse}
-
-	var verseDetail VerseDetail
-
-	err := p.DB.QueryRowContext(ctx, query, args...).Scan(
-		&verseDetail.Number,
-		&verseDetail.Text,
-	)
-
-	if err != nil {
-		switch {
-		case errors.Is(err, sql.ErrNoRows):
-			return nil, ErrRecordNotFound
-		default:
-			return nil, err
-		}
-	}
-
-	return &Passage{
-		Book:    filters.Book,
-		Chapter: filters.Chapter,
-		Verses:  []VerseDetail{verseDetail},
-	}, nil
-
-}
-
-func (p *passageModel) getVerseRange(filters PassageFilters) (*Passage, error) {
+func (p *passageModel) getVerseRange(filters *PassageFilters) (*Passage, error) {
 	query := `
 			SELECT  v.verse, v.text
 			FROM verses as v
@@ -88,12 +50,13 @@ func (p *passageModel) getVerseRange(filters PassageFilters) (*Passage, error) {
 	return p.queryVerses(query, filters.Book, filters.Chapter, filters.StartVerse, filters.EndVerse)
 }
 
-func (p *passageModel) getChapter(filters PassageFilters) (*Passage, error) {
+func (p *passageModel) getChapter(filters *PassageFilters) (*Passage, error) {
 	query := `
 			SELECT v.verse, v.text
 			FROM verses as v
 			JOIN books As b ON v.book_id = b.id
 			WHERE b.name = $1 AND v.chapter = $2`
+
 	return p.queryVerses(query, filters.Book, filters.Chapter)
 }
 
@@ -115,7 +78,7 @@ func (p *passageModel) queryVerses(query string, args ...any) (*Passage, error) 
 
 	for rows.Next() {
 		var verseDetail VerseDetail
-		if err := rows.Scan(&verseDetail.Number, verseDetail.Text); err != nil {
+		if err := rows.Scan(&verseDetail.Number, &verseDetail.Text); err != nil {
 			return nil, err
 		}
 		passage.Verses = append(passage.Verses, verseDetail)
@@ -125,6 +88,7 @@ func (p *passageModel) queryVerses(query string, args ...any) (*Passage, error) 
 	}
 
 	if len(passage.Verses) == 0 {
+		fmt.Println(passage)
 		return nil, ErrRecordNotFound
 	}
 
