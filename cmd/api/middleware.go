@@ -20,7 +20,7 @@ func (app *application) authenticate(next http.Handler) http.Handler {
 			return
 		}
 
-		headerParts := strings.Split(authorizationHeader, "")
+		headerParts := strings.Fields(authorizationHeader)
 		if len(headerParts) != 2 || headerParts[0] != "Bearer" {
 			app.invalidAuthTokenResponse(w, r)
 			return
@@ -38,7 +38,7 @@ func (app *application) authenticate(next http.Handler) http.Handler {
 			return
 		}
 
-		user, err := app.models.Users.GetForToken(data.ScopeAuthentication, token)
+		user, err := app.models.Users.GetForToken(token, data.ScopeAuthentication)
 		if err != nil {
 			switch {
 			case errors.Is(err, data.ErrRecordNotFound):
@@ -50,6 +50,24 @@ func (app *application) authenticate(next http.Handler) http.Handler {
 		}
 
 		r = app.contextSetUser(r, user)
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (app *application) requireActivatedUser(next http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user := app.contextGetUser(r)
+
+		if user.IsAnonymous() {
+			app.authenticationRequiredResponse(w, r)
+			return
+		}
+
+		if !user.Activated {
+			app.inactiveAccountResponse(w, r)
+			return
+		}
 
 		next.ServeHTTP(w, r)
 	})

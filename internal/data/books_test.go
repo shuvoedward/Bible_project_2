@@ -31,7 +31,7 @@ func TestGetChapter(t *testing.T) {
 	defer deleteTestChapter(bookID, 1)
 
 	// 3. Get chapter
-	filters := PassageFilters{
+	filters := LocationFilters{
 		Book:    "Genesis",
 		Chapter: 1,
 	}
@@ -89,7 +89,7 @@ func TestGetVerseRange(t *testing.T) {
 	}
 	defer deleteTestChapter(bookID, 1)
 
-	filter := PassageFilters{
+	filter := LocationFilters{
 		Book:       "Genesis",
 		Chapter:    1,
 		StartVerse: 1,

@@ -9,7 +9,7 @@ import (
 
 type mockPassageModel struct{}
 
-func (m *mockPassageModel) Get(filters *data.PassageFilters) (*data.Passage, error) {
+func (m *mockPassageModel) Get(filters *data.LocationFilters) (*data.Passage, error) {
 	if filters.Book == "Genesis" && filters.Chapter == 1 {
 		return &data.Passage{
 			Book:    "Genesis",

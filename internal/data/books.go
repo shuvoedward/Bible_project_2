@@ -8,7 +8,7 @@ import (
 )
 
 type PassageModel interface {
-	Get(filters *PassageFilters) (*Passage, error)
+	Get(filters *LocationFilters) (*Passage, error)
 }
 
 type VerseDetail struct {
@@ -31,7 +31,7 @@ func NewPassageModel(db *sql.DB) *passageModel {
 	return &passageModel{DB: db}
 }
 
-func (p *passageModel) Get(filters *PassageFilters) (*Passage, error) {
+func (p *passageModel) Get(filters *LocationFilters) (*Passage, error) {
 	switch {
 	case filters.StartVerse != 0 && filters.EndVerse != 0:
 		return p.getVerseRange(filters)
@@ -40,7 +40,7 @@ func (p *passageModel) Get(filters *PassageFilters) (*Passage, error) {
 	}
 }
 
-func (p *passageModel) getVerseRange(filters *PassageFilters) (*Passage, error) {
+func (p *passageModel) getVerseRange(filters *LocationFilters) (*Passage, error) {
 	query := `
 			SELECT  v.verse, v.text
 			FROM verses as v
@@ -50,7 +50,7 @@ func (p *passageModel) getVerseRange(filters *PassageFilters) (*Passage, error) 
 	return p.queryVerses(query, filters.Book, filters.Chapter, filters.StartVerse, filters.EndVerse)
 }
 
-func (p *passageModel) getChapter(filters *PassageFilters) (*Passage, error) {
+func (p *passageModel) getChapter(filters *LocationFilters) (*Passage, error) {
 	query := `
 			SELECT v.verse, v.text
 			FROM verses as v
