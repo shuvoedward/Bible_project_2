@@ -4,22 +4,26 @@ import (
 	"errors"
 	"net/http"
 	"shuvoedward/Bible_project/internal/data"
+	"shuvoedward/Bible_project/internal/validator"
 )
 
 // Get passage
 func (app *application) getChapterOrVerses(w http.ResponseWriter, r *http.Request) {
-	filters, err := app.getPassageFilters(r)
+	filter, err := app.getLocationFilters(r)
 	if err != nil {
-		switch {
-		case errors.Is(err, data.ErrRecordNotFound):
-			app.notFoundResponse(w, r)
-		default:
-			app.badRequestResponse(w, r, err)
-		}
+		app.badRequestResponse(w, r, err)
 		return
 	}
 
-	passage, err := app.models.Passages.Get(filters)
+	v := validator.New()
+
+	app.validateLocationFilter(v, filter)
+	if !v.Valid() {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	passage, err := app.models.Passages.Get(filter)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
@@ -30,7 +34,23 @@ func (app *application) getChapterOrVerses(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	err = app.writeJSON(w, http.StatusOK, envelope{"passage": passage}, nil)
+	// If user is not logged in, log the error but still return the passage
+	// to ensure the user's reading experience is not blocked.
+	highlights := []*data.Highlight{}
+
+	user := app.contextGetUser(r)
+	if !user.IsAnonymous() {
+		highlights, err = app.models.Highlights.Get(user.ID, filter)
+		if err != nil {
+			app.logger.Error(err.Error())
+		}
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{
+		"passage":    passage,
+		"highlights": highlights,
+	}, nil)
+
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

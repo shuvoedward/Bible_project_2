@@ -10,7 +10,7 @@ var (
 	ErrEditConflict   = errors.New("edit conflict")
 )
 
-type PassageFilters struct {
+type LocationFilters struct {
 	Book       string
 	Chapter    int
 	StartVerse int
@@ -18,15 +18,17 @@ type PassageFilters struct {
 }
 
 type Models struct {
-	Passages PassageModel
-	Users    UserModel
-	Tokens   TokenModel
+	Passages   PassageModel
+	Highlights HighlightModel
+	Users      UserModel
+	Tokens     TokenModel
 }
 
 func NewModels(db *sql.DB) Models {
 	return Models{
-		Passages: NewPassageModel(db),
-		Users:    NewUserModel(db),
-		Tokens:   NewTokenModel(db),
+		Passages:   NewPassageModel(db),
+		Highlights: NewHighlightModel(db),
+		Users:      NewUserModel(db),
+		Tokens:     NewTokenModel(db),
 	}
 }

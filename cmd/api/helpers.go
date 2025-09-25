@@ -14,20 +14,13 @@ import (
 
 type envelope map[string]any
 
-func (app *application) getPassageFilters(r *http.Request) (*data.PassageFilters, error) {
+func (app *application) getLocationFilters(r *http.Request) (*data.LocationFilters, error) {
 	params := httprouter.ParamsFromContext(r.Context())
 	book := params.ByName("book")
-
-	if _, exists := app.books[book]; !exists {
-		return nil, data.ErrRecordNotFound
-	}
 
 	chapter, err := strconv.Atoi(params.ByName("chapter"))
 	if err != nil {
 		return nil, errors.New("invalid chapter parameter")
-	}
-	if chapter < 1 || chapter > 150 {
-		return nil, data.ErrRecordNotFound
 	}
 
 	var svs, evs int
@@ -40,20 +33,15 @@ func (app *application) getPassageFilters(r *http.Request) (*data.PassageFilters
 		if err != nil {
 			return nil, errors.New("invalid start verse parameter")
 		}
-		if svs < 1 || svs > 176 {
-			return nil, data.ErrRecordNotFound
-		}
 
 		evs, err = strconv.Atoi(query.Get("evs"))
 		if err != nil {
 			return nil, errors.New("invalid end verse parameter")
 		}
-		if evs < 1 || evs > 176 {
-			return nil, data.ErrRecordNotFound
-		}
+
 	}
 
-	return &data.PassageFilters{
+	return &data.LocationFilters{
 		Book:       book,
 		Chapter:    chapter,
 		StartVerse: svs,
@@ -131,4 +119,14 @@ func (app *application) backgournd(fn func()) {
 
 		fn()
 	})
+}
+
+func (app *application) readIDParam(r *http.Request) (*int64, error) {
+	param := httprouter.ParamsFromContext(r.Context())
+
+	id, err := strconv.ParseInt(param.ByName("id"), 10, 64)
+	if err != nil || id < 1 {
+		return nil, err
+	}
+	return &id, nil
 }
