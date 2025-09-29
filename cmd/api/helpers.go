@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"shuvoedward/Bible_project/internal/data"
 	"strconv"
+	"strings"
 
 	"github.com/julienschmidt/httprouter"
 )
@@ -72,7 +73,10 @@ func (app *application) writeJSON(w http.ResponseWriter, status int, data envelo
 }
 
 func (app *application) readJSON(r *http.Request, dst any) error {
-	err := json.NewDecoder(r.Body).Decode(dst)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+
+	err := dec.Decode(dst)
 	if err != nil {
 		var syntaxError *json.SyntaxError
 		var unmarshalTypeError *json.UnmarshalTypeError
@@ -97,12 +101,21 @@ func (app *application) readJSON(r *http.Request, dst any) error {
 		case errors.Is(err, io.EOF):
 			return errors.New("body must not be empty")
 
+		case strings.HasPrefix(err.Error(), "json: unknown field "):
+			fieldName := strings.TrimPrefix(err.Error(), "json: unknown field ")
+			return fmt.Errorf("body contains unknown key %s", fieldName)
+
 		case errors.As(err, &invalidUnmarshalError):
 			panic(err)
 
 		default:
 			return err
 		}
+	}
+
+	err = dec.Decode(&struct{}{})
+	if !errors.Is(err, io.EOF) {
+		return errors.New("body must only contain a single json value")
 	}
 
 	return nil
