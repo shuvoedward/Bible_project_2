@@ -2,22 +2,19 @@ package data
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 )
 
 func TestUserModel_Insert(t *testing.T) {
-	testUser := User{
-		Name:      "cornelius",
-		Email:     "example@gmail.com",
-		Activated: false,
-	}
-	err := testUser.Password.Set("12345678")
+	fmt.Println("running user tests")
+	testUser, err := createTestUser()
 	if err != nil {
 		t.Fatalf("failed to set password: %v", err)
 	}
 
 	m := NewModels(testDB)
-	err = m.Users.Insert(&testUser)
+	err = m.Users.Insert(testUser)
 	if err != nil {
 		t.Fatalf("Failed to insert user: %v", err)
 	}
@@ -35,18 +32,13 @@ func TestUserModel_Insert(t *testing.T) {
 
 func TestUserModel_GetByEmail(t *testing.T) {
 
-	testUser := User{
-		Name:      "cornelius",
-		Email:     "example@gmail.com",
-		Activated: false,
-	}
-	err := testUser.Password.Set("12345678")
+	testUser, err := createTestUser()
 	if err != nil {
 		t.Fatalf("failed to set password: %v", err)
 	}
 
 	m := NewModels(testDB)
-	err = m.Users.Insert(&testUser)
+	err = m.Users.Insert(testUser)
 	if err != nil {
 		t.Fatalf("Failed to insert user: %v", err)
 	}
@@ -66,6 +58,20 @@ func TestUserModel_GetByEmail(t *testing.T) {
 		t.Errorf("Expected sql.ErrNoRows for nonexistent email, but got %v", err)
 	}
 
+}
+
+func createTestUser() (*User, error) {
+	testUser := User{
+		Name:      "cornelius",
+		Email:     "example@gmail.com",
+		Activated: true,
+	}
+	err := testUser.Password.Set("12345678")
+	if err != nil {
+		return nil, err
+	}
+
+	return &testUser, nil
 }
 
 func deleteUser(id int64) {

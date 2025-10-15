@@ -44,7 +44,7 @@ func (app *application) insertHighlightHandler(w http.ResponseWriter, r *http.Re
 func (app *application) updateHighlightHandler(w http.ResponseWriter, r *http.Request) {
 	user := app.contextGetUser(r)
 
-	id, err := app.readIDParam(r)
+	id, err := app.readIDParam(r, "id")
 	if err != nil {
 		app.badRequestResponse(w, r, err)
 		return
@@ -70,7 +70,7 @@ func (app *application) updateHighlightHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	err = app.models.Highlights.Update(*id, user.ID, input.Color)
+	err = app.models.Highlights.Update(id, user.ID, input.Color)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -80,7 +80,7 @@ func (app *application) updateHighlightHandler(w http.ResponseWriter, r *http.Re
 		ID    int64
 		Color string
 	}{
-		ID:    *id,
+		ID:    id,
 		Color: input.Color,
 	}
 
@@ -91,7 +91,7 @@ func (app *application) updateHighlightHandler(w http.ResponseWriter, r *http.Re
 }
 
 func (app *application) deleteHighlightHandler(w http.ResponseWriter, r *http.Request) {
-	id, err := app.readIDParam(r)
+	id, err := app.readIDParam(r, "id")
 	if err != nil {
 		app.badRequestResponse(w, r, err)
 		return
@@ -99,7 +99,7 @@ func (app *application) deleteHighlightHandler(w http.ResponseWriter, r *http.Re
 
 	user := app.contextGetUser(r)
 
-	err = app.models.Highlights.Delete(*id, user.ID)
+	err = app.models.Highlights.Delete(id, user.ID)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
