@@ -23,5 +23,11 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPatch, "/v1/highlights/:id", app.requireActivatedUser(app.updateHighlightHandler))
 	router.HandlerFunc(http.MethodDelete, "/v1/highlights/:id", app.requireActivatedUser(app.deleteHighlightHandler))
 
+	router.HandlerFunc(http.MethodPost, "/v1/notes", app.requireActivatedUser(app.createNoteHandler))
+	router.HandlerFunc(http.MethodDelete, "/v1/notes/:id", app.requireActivatedUser(app.deleteNoteHandler))
+	router.HandlerFunc(http.MethodPut, "/v1/notes/:id", app.requireActivatedUser(app.updateNoteHandler))
+	router.HandlerFunc(http.MethodPost, "/v1/notes/:id/locations", app.requireActivatedUser(app.linkNoteHandler))
+	router.HandlerFunc(http.MethodDelete, "/v1/notes/:id/locations/:locationID", app.requireActivatedUser(app.DeleteLinkHandler))
+
 	return app.authenticate(router)
 }

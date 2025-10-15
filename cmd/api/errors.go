@@ -50,9 +50,8 @@ func (app *application) invalidCredentialResponse(w http.ResponseWriter, r *http
 	app.errorResponse(w, r, http.StatusUnauthorized, message)
 }
 
-func (app *application) editConflictResponse(w http.ResponseWriter, r *http.Request) {
-	message := "unable to update the record due to an edit conflict. Please try again"
-	app.errorResponse(w, r, http.StatusConflict, message)
+func (app *application) editConflictResponse(w http.ResponseWriter, r *http.Request, err error) {
+	app.errorResponse(w, r, http.StatusConflict, err.Error())
 }
 
 func (app *application) invalidAuthTokenResponse(w http.ResponseWriter, r *http.Request) {
@@ -70,4 +69,9 @@ func (app *application) authenticationRequiredResponse(w http.ResponseWriter, r 
 func (app *application) inactiveAccountResponse(w http.ResponseWriter, r *http.Request) {
 	message := "your user accound must be activated to access this resource"
 	app.errorResponse(w, r, http.StatusForbidden, message)
+}
+
+func (app *application) rateLimitExceededResponse(w http.ResponseWriter, r *http.Request) {
+	message := "rate limit exceeded, please try again later"
+	app.errorResponse(w, r, http.StatusTooManyRequests, message)
 }

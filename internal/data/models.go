@@ -22,6 +22,7 @@ type Models struct {
 	Highlights HighlightModel
 	Users      UserModel
 	Tokens     TokenModel
+	Notes      NoteModel
 }
 
 func NewModels(db *sql.DB) Models {
@@ -30,5 +31,6 @@ func NewModels(db *sql.DB) Models {
 		Highlights: NewHighlightModel(db),
 		Users:      NewUserModel(db),
 		Tokens:     NewTokenModel(db),
+		Notes:      NewNoteModel(db),
 	}
 }
