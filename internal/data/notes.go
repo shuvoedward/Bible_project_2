@@ -12,21 +12,27 @@ import (
 	"github.com/lib/pq"
 )
 
+const (
+	NoteTypeGeneral  = "GENERAL"
+	NoteTypeBible    = "BIBLE"
+	NoteTypeCrossRef = "CROSS_REFERENCE"
+)
+
+const UniqueViolation = "23505"
+
 var ErrDuplicateTitleGeneral = errors.New("a general note with this title already exists for this user")
 var ErrLocationAlreadyLinked = errors.New("this note already linked to this location")
 var ErrDuplicateContent = errors.New("a note with this content already exists")
 
-const UniqueViolation = "23505"
-
 type NoteModel interface {
-	GetAllLocatedForChapter(userID int64, filter *LocationFilters) ([]*LocatedNoteResponse, []*LocatedNoteResponse, error)
-	Get(userID int64, id int64) (*LocatedNoteResponse, error)
-	GetAll(userID int64, noteType string, limit, offset int) ([]*NoteContent, error)
-	InsertLocated(content *NoteContent, location *NoteLocation) (*LocatedNoteResponse, error)
-	InsertGeneral(note *NoteContent) (*LocatedNoteResponse, error)
+	GetAllLocatedForChapter(userID int64, filter *LocationFilters) ([]*NoteResponse, []*NoteResponse, error)
+	Get(userID int64, id int64) (*NoteResponse, error)
+	GetAll(userID int64, filter *NoteQueryParams) ([]*NoteContent, error)
+	InsertLocated(content *NoteContent, location *NoteLocation) (*NoteResponse, error)
+	InsertGeneral(note *NoteContent) (*NoteResponse, error)
 	Delete(id int64, userID int64) error
-	Update(content *NoteContent) (*LocatedNoteResponse, error)
-	Link(input *NoteInputLocation) (*LocatedNoteResponse, error)
+	Update(content *NoteContent) (*NoteResponse, error)
+	Link(input *NoteInputLocation) (*NoteResponse, error)
 	DeleteLink(note_id, location_id, userID int64) error
 }
 
@@ -72,7 +78,7 @@ type LocationResponse struct {
 	EndOffset   int    `json:"end_offset"`
 }
 
-type LocatedNoteResponse struct {
+type NoteResponse struct {
 	ID        int64     `json:"note_id"`
 	UserID    int64     `json:"-"`
 	Title     string    `json:"title"`
@@ -84,6 +90,10 @@ type LocatedNoteResponse struct {
 	Location *LocationResponse `json:"location,omitempty"`
 }
 
+type NoteQueryParams struct {
+	Filters
+	NoteType string
+}
 type noteModel struct {
 	DB *sql.DB
 }
@@ -98,7 +108,7 @@ func hashContent(content string) string {
 }
 
 // Get notes for a verse ranges, Bible notes type, cross ref type
-func (m noteModel) GetAllLocatedForChapter(userID int64, filter *LocationFilters) ([]*LocatedNoteResponse, []*LocatedNoteResponse, error) {
+func (m noteModel) GetAllLocatedForChapter(userID int64, filter *LocationFilters) ([]*NoteResponse, []*NoteResponse, error) {
 	query := `
 		SELECT
 			n.id, 
@@ -141,8 +151,8 @@ func (m noteModel) GetAllLocatedForChapter(userID int64, filter *LocationFilters
 	}
 	defer rows.Close()
 
-	BibleNotes := []*LocatedNoteResponse{}
-	CrossRefNotes := []*LocatedNoteResponse{}
+	BibleNotes := []*NoteResponse{}
+	CrossRefNotes := []*NoteResponse{}
 
 	for rows.Next() {
 		var content NoteContent
@@ -166,7 +176,7 @@ func (m noteModel) GetAllLocatedForChapter(userID int64, filter *LocationFilters
 			return nil, nil, err
 		}
 
-		locatedNote := &LocatedNoteResponse{
+		locatedNote := &NoteResponse{
 			ID:        content.ID,
 			Title:     content.Title,
 			Content:   content.Content,
@@ -197,7 +207,7 @@ func (m noteModel) GetAllLocatedForChapter(userID int64, filter *LocationFilters
 	return BibleNotes, CrossRefNotes, nil
 }
 
-func (m noteModel) Get(userID int64, id int64) (*LocatedNoteResponse, error) {
+func (m noteModel) Get(userID int64, id int64) (*NoteResponse, error) {
 	query := `
 		SELECT 
 			id, user_id, title, content, note_type, created_at, updated_at
@@ -210,7 +220,7 @@ func (m noteModel) Get(userID int64, id int64) (*LocatedNoteResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	var note LocatedNoteResponse
+	var note NoteResponse
 
 	err := m.DB.QueryRowContext(ctx, query, id, userID).Scan(
 		&note.ID,
@@ -234,24 +244,26 @@ func (m noteModel) Get(userID int64, id int64) (*LocatedNoteResponse, error) {
 	return &note, nil
 }
 
-func (m noteModel) GetAll(userID int64, noteType string, limit, offset int) ([]*NoteContent, error) {
-	query := `
+func (m noteModel) GetAll(userID int64, filter *NoteQueryParams) ([]*NoteContent, error) {
+	query := fmt.Sprintf(`
 		SELECT 
-			id, userID, title, content, note_type, created_at, updated_at
+			id, user_id, title, content, note_type, created_at, updated_at
 		FROM 
 			notes
 		WHERE
 			user_id = $1
 			AND note_type = $2
 		ORDER BY
-			id ASC
+			%s %s	
 		LIMIT $3
-		OFFSET $4`
+		OFFSET $4`, filter.sortColumn(), filter.sortDirection())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rows, err := m.DB.QueryContext(ctx, query, userID, noteType, limit, offset)
+	args := []any{userID, filter.NoteType, filter.limit(), filter.offset()}
+
+	rows, err := m.DB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -264,6 +276,7 @@ func (m noteModel) GetAll(userID int64, noteType string, limit, offset int) ([]*
 		err := rows.Scan(
 			&note.ID,
 			&note.UserID,
+			&note.Title,
 			&note.Content,
 			&note.NoteType,
 			&note.CreatedAt,
@@ -284,7 +297,7 @@ func (m noteModel) GetAll(userID int64, noteType string, limit, offset int) ([]*
 	return notes, nil
 }
 
-func (m noteModel) Update(content *NoteContent) (*LocatedNoteResponse, error) {
+func (m noteModel) Update(content *NoteContent) (*NoteResponse, error) {
 	query := `
 		UPDATE 
 			notes
@@ -309,7 +322,7 @@ func (m noteModel) Update(content *NoteContent) (*LocatedNoteResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	var responseNote LocatedNoteResponse
+	var responseNote NoteResponse
 
 	args := []any{content.ID, content.UserID, content.Title, content.Content, newHash, time.Now()}
 
@@ -353,7 +366,7 @@ func (m noteModel) Update(content *NoteContent) (*LocatedNoteResponse, error) {
 	return &responseNote, nil
 }
 
-func (m noteModel) InsertLocated(content *NoteContent, location *NoteLocation) (*LocatedNoteResponse, error) {
+func (m noteModel) InsertLocated(content *NoteContent, location *NoteLocation) (*NoteResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 	defer cancel()
 
@@ -407,7 +420,7 @@ func (m noteModel) InsertLocated(content *NoteContent, location *NoteLocation) (
 		CROSS JOIN 
 			location_inserted l`
 
-	var responseNote LocatedNoteResponse
+	var responseNote NoteResponse
 	responseNote.Location = &LocationResponse{}
 
 	insertArgs := []any{content.UserID, content.Title, content.Content, contentHash, content.NoteType,
@@ -436,7 +449,7 @@ func (m noteModel) InsertLocated(content *NoteContent, location *NoteLocation) (
 	return &responseNote, nil
 }
 
-func (m noteModel) InsertGeneral(note *NoteContent) (*LocatedNoteResponse, error) {
+func (m noteModel) InsertGeneral(note *NoteContent) (*NoteResponse, error) {
 	query := `
 		INSERT INTO notes
 			(user_id, title, content, note_type)	
@@ -451,7 +464,7 @@ func (m noteModel) InsertGeneral(note *NoteContent) (*LocatedNoteResponse, error
 
 	args := []any{note.UserID, note.Title, note.Content, note.NoteType}
 
-	var responseNote LocatedNoteResponse
+	var responseNote NoteResponse
 
 	err := m.DB.QueryRowContext(ctx, query, args...).Scan(
 		&responseNote.ID,
@@ -506,7 +519,7 @@ func (m noteModel) Delete(id int64, userID int64) error {
 	return nil
 }
 
-func (m noteModel) Link(input *NoteInputLocation) (*LocatedNoteResponse, error) {
+func (m noteModel) Link(input *NoteInputLocation) (*NoteResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
@@ -582,7 +595,7 @@ func (m noteModel) Link(input *NoteInputLocation) (*LocatedNoteResponse, error) 
 	args := []any{input.ID, input.UserID, input.Book, input.Chapter, input.StartVerse,
 		input.EndVerse, input.StartOffset, input.EndOffset}
 
-	var responseNote LocatedNoteResponse
+	var responseNote NoteResponse
 	responseNote.Location = &LocationResponse{}
 
 	err = tx.QueryRowContext(ctx, insertQuery, args...).Scan(

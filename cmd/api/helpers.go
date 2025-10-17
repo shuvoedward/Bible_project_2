@@ -28,8 +28,7 @@ func (app *application) getLocationFilters(r *http.Request) (*data.LocationFilte
 
 	query := r.URL.Query()
 
-	switch {
-	case query.Has("svs") && query.Has("evs"):
+	if query.Has("svs") && query.Has("evs") {
 		svs, err = strconv.Atoi(query.Get("svs"))
 		if err != nil {
 			return nil, errors.New("invalid start verse parameter")
@@ -39,7 +38,6 @@ func (app *application) getLocationFilters(r *http.Request) (*data.LocationFilte
 		if err != nil {
 			return nil, errors.New("invalid end verse parameter")
 		}
-
 	}
 
 	return &data.LocationFilters{
@@ -141,4 +139,48 @@ func (app *application) readIDParam(r *http.Request, idName string) (int64, erro
 		return 0, errors.New("invalid id parameter")
 	}
 	return id, nil
+}
+
+func (app *application) parseNoteQuery(r *http.Request) (*data.NoteQueryParams, error) {
+	// get note_type, page, page_size
+	var validationErrors []string
+
+	query := r.URL.Query()
+
+	noteType := query.Get("type")
+
+	// check noteType
+	if noteType != data.NoteTypeGeneral && noteType != data.NoteTypeBible {
+		validationErrors = append(validationErrors, "note type must be 'GENERAL' or 'BIBLE'")
+	}
+
+	sort := query.Get("sort")
+	if sort == "" {
+		validationErrors = append(validationErrors, "sort can not be empty")
+	}
+
+	page, err := strconv.Atoi(query.Get("page"))
+	if err != nil || page < 1 {
+		validationErrors = append(validationErrors, "page must be at least 1")
+	}
+
+	pageSize, err := strconv.Atoi(query.Get("page_size"))
+	if err != nil || pageSize < 1 {
+		validationErrors = append(validationErrors, "page_size must be at least 1")
+	}
+
+	if len(validationErrors) > 0 {
+		return nil, errors.New(strings.Join(validationErrors, "; "))
+	}
+
+	filters := data.Filters{
+		Page:     page,
+		PageSize: pageSize,
+		Sort:     sort,
+	}
+
+	return &data.NoteQueryParams{
+		Filters:  filters,
+		NoteType: noteType,
+	}, nil
 }
