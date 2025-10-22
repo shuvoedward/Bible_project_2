@@ -5,7 +5,7 @@ var AllBooks []string
 func init() {
 	AllBooks = []string{
 		"Genesis",
-		"Rxodus",
+		"Exodus",
 		"Leviticus",
 		"Numbers",
 		"Deuteronomy",
@@ -15,7 +15,7 @@ func init() {
 		"1 Samuel",
 		"2 Samuel",
 		"1 Kings",
-		"2 kings",
+		"2 Kings",
 		"1 Chronicles",
 		"2 Chronicles",
 		"Ezra",
@@ -61,7 +61,7 @@ func init() {
 		"2 Timothy",
 		"Titus",
 		"Philemon",
-		"Jebrews",
+		"Hebrews",
 		"James",
 		"1 Peter",
 		"2 Peter",

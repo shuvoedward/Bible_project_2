@@ -1,3 +1,17 @@
+// @title           Bible Notes API
+// @version         1.0
+// @description     A note-taking API for Bible study and annotations
+// @termsOfService  http://swagger.io/terms/
+
+// @contact.name   API Support
+// @contact.email  shuvoedward@gmail.com
+
+// @host      localhost:4000
+// @BasePath  /v1
+
+// @in header
+// @name Authorization
+
 package main
 
 import (
@@ -35,14 +49,15 @@ type config struct {
 }
 
 type application struct {
-	config          config
-	books           map[string]struct{}
-	logger          *slog.Logger
-	models          data.Models
-	mailer          *mailer.Mailer
-	wg              sync.WaitGroup
-	ipRateLimiter   *ratelimit.RateLimiter
-	noteRateLimiter *ratelimit.RateLimiter // TODO: Change name to note to writeRateLimit
+	config           config
+	books            map[string]struct{}
+	booksSearchIndex map[string][]string
+	logger           *slog.Logger
+	models           data.Models
+	mailer           *mailer.Mailer
+	wg               sync.WaitGroup
+	ipRateLimiter    *ratelimit.RateLimiter
+	noteRateLimiter  *ratelimit.RateLimiter // TODO: Change name to note to writeRateLimit
 }
 
 func main() {
@@ -77,6 +92,8 @@ func main() {
 		books[bookTitle] = struct{}{}
 	}
 
+	booksSearchIndex := data.BuildBookSearchIndex(data.AllBooks)
+
 	mailer, err := mailer.New(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender)
 	if err != nil {
 		logger.Error(err.Error())
@@ -84,13 +101,14 @@ func main() {
 	}
 
 	app := application{
-		config:          cfg,
-		books:           books,
-		logger:          logger,
-		models:          data.NewModels(db),
-		mailer:          mailer,
-		ipRateLimiter:   ratelimit.NewRateLimiter(cfg.ratelimit.ipRateLimit, time.Second),
-		noteRateLimiter: ratelimit.NewRateLimiter(cfg.ratelimit.noteRateLimit, time.Second),
+		config:           cfg,
+		books:            books,
+		booksSearchIndex: booksSearchIndex,
+		logger:           logger,
+		models:           data.NewModels(db),
+		mailer:           mailer,
+		ipRateLimiter:    ratelimit.NewRateLimiter(cfg.ratelimit.ipRateLimit, time.Second),
+		noteRateLimiter:  ratelimit.NewRateLimiter(cfg.ratelimit.noteRateLimit, time.Second),
 	}
 
 	err = app.serve()

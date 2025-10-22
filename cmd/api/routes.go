@@ -14,7 +14,8 @@ func (app *application) routes() http.Handler {
 
 	router.HandlerFunc(http.MethodGet, "/v1/bible/:book/:chapter", app.getChapterOrVerses)
 
-	router.HandlerFunc(http.MethodGet, "v1/bible/autocomplete", app.autocompleteHanlder)
+	router.HandlerFunc(http.MethodGet, "/v1/autocomplete/bible", app.autoCompleteHandler)
+	router.HandlerFunc(http.MethodGet, "/v1/search/bible", app.searchHandler)
 
 	router.HandlerFunc(http.MethodPost, "/v1/users", app.registerUserHandler)
 	router.HandlerFunc(http.MethodGet, "/v1/users/activated/:token", app.activateUserHandler)
