@@ -12,6 +12,8 @@ func (app *application) routes() http.Handler {
 	router.RedirectFixedPath = false
 	router.RedirectTrailingSlash = false
 
+	router.HandlerFunc(http.MethodGet, "/v1/healthcheck", app.healthCheckHandler)
+
 	router.HandlerFunc(http.MethodGet, "/v1/bible/:book/:chapter", app.getChapterOrVerses)
 
 	router.HandlerFunc(http.MethodGet, "/v1/autocomplete/bible", app.autoCompleteHandler)
