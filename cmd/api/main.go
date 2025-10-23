@@ -33,11 +33,14 @@ var (
 )
 
 type config struct {
-	port int
-	env  string
-	db   struct {
+	port            int
+	env             string
+	LanguageToolURL string
+
+	db struct {
 		dsn string
 	}
+
 	smtp struct {
 		host     string
 		port     int
@@ -45,6 +48,7 @@ type config struct {
 		password string
 		sender   string
 	}
+
 	ratelimit struct {
 		ipRateLimit int
 		// ipRateLimitWindow   time.Duration
@@ -71,6 +75,8 @@ func main() {
 	flag.IntVar(&cfg.port, "port", 4000, "API server port")
 
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
+
+	flag.StringVar(&cfg.LanguageToolURL, "languageToolURL", "", "LanguageTool URL")
 
 	flag.StringVar(&cfg.db.dsn, "db-dsn", "", "PostgreSQL DSN")
 

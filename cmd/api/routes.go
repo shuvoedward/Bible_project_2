@@ -28,6 +28,8 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPatch, "/v1/highlights/:id", app.requireActivatedUser(app.updateHighlightHandler))
 	router.HandlerFunc(http.MethodDelete, "/v1/highlights/:id", app.requireActivatedUser(app.deleteHighlightHandler))
 
+	router.HandlerFunc(http.MethodPost, "/v1/grammar/check", app.requireActivatedUser(app.grammarCheckHanlder))
+
 	router.HandlerFunc(http.MethodGet, "/v1/notes", app.requireActivatedUser(app.listNotesHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/notes/:id", app.requireActivatedUser(app.getNoteHandler))
 	router.HandlerFunc(http.MethodPost, "/v1/notes", app.requireActivatedUser(app.createNoteHandler))
