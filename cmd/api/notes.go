@@ -6,6 +6,7 @@ import (
 	"shuvoedward/Bible_project/internal/data"
 	"shuvoedward/Bible_project/internal/validator"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -351,6 +352,7 @@ func (app *application) listNotesHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// have a noteType parameter
 	notes, err := app.models.Notes.GetAll(user.ID, filter)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
@@ -388,4 +390,58 @@ func (app *application) getNoteHandler(w http.ResponseWriter, r *http.Request) {
 		app.serverErrorResponse(w, r, err)
 	}
 
+}
+
+// this can be used in suggestion, if suggestion, no need for page no
+// implement both page and page_size, let frontend decide how to use it
+func (app *application) searchNoteHandler(w http.ResponseWriter, r *http.Request) {
+	user := app.contextGetUser(r)
+
+	var requestErrors []string
+	query := r.URL.Query()
+
+	q := query.Get("q")
+	if q == "" {
+		requestErrors = append(requestErrors, "query can not be empty")
+	}
+
+	page, err := strconv.Atoi(query.Get("page"))
+	if err != nil || page < 1 {
+		requestErrors = append(requestErrors, "page must be at least 1")
+	}
+
+	pageSize, err := strconv.Atoi(query.Get("page_size"))
+	if err != nil || pageSize < 1 {
+		requestErrors = append(requestErrors, "page_size must be at least 1")
+	}
+
+	if len(requestErrors) > 0 {
+		app.badRequestResponse(w, r, errors.New(strings.Join(requestErrors, "; ")))
+		return
+	}
+	v := validator.New()
+
+	v.Check(page <= 10000, "page", "must be at most 10000")
+	v.Check(pageSize <= 100, "page_size", "must be at most 100")
+
+	if !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	filter := data.Filters{
+		Page:     page,
+		PageSize: pageSize,
+	}
+
+	response, err := app.models.Notes.SearchNotes(user.ID, q, &filter)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"notes": response}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
 }
