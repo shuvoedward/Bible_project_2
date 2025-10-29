@@ -39,5 +39,8 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPost, "/v1/notes/:id/locations", app.requireActivatedUser(app.linkNoteHandler))
 	router.HandlerFunc(http.MethodDelete, "/v1/notes/:id/locations/:locationID", app.requireActivatedUser(app.deleteLinkHandler))
 
+	router.HandlerFunc(http.MethodPost, "/v1/notes/:id/images", app.requireActivatedUser(app.imageUploadHandler))
+	router.HandlerFunc(http.MethodDelete, "/v1/notes/:id/images/*s3_key", app.requireActivatedUser(app.imageDeleteHandler))
+
 	return app.authenticate(router)
 }

@@ -528,12 +528,12 @@ func (m noteModel) InsertGeneral(note *NoteContent) (*NoteResponse, error) {
 
 func (m noteModel) Delete(id int64, userID int64) error {
 	query := `
-		DELETE FROM notes
+		DELETE FROM 
+			notes
 		WHERE 
 			id = $1
 			AND user_id = $2
-		RETURNING 
-			id`
+		`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
