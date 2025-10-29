@@ -15,13 +15,16 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"flag"
 	"log/slog"
 	"os"
+	"shuvoedward/Bible_project/internal/cache"
 	"shuvoedward/Bible_project/internal/data"
 	"shuvoedward/Bible_project/internal/mailer"
 	"shuvoedward/Bible_project/internal/ratelimit"
+	"shuvoedward/Bible_project/internal/s3_service"
 	"sync"
 	"time"
 
@@ -55,6 +58,8 @@ type config struct {
 		noteRateLimit int
 		// noteRateLimitWindow time.Duration
 	}
+
+	redisConfig cache.RedisConfig
 }
 
 type application struct {
@@ -62,11 +67,13 @@ type application struct {
 	books            map[string]struct{}
 	booksSearchIndex map[string][]string
 	logger           *slog.Logger
+	redis            *cache.RedisClient
 	models           data.Models
 	mailer           *mailer.Mailer
 	wg               sync.WaitGroup
 	ipRateLimiter    *ratelimit.RateLimiter
 	noteRateLimiter  *ratelimit.RateLimiter // TODO: Change name to note to writeRateLimit
+	s3ImageService   *s3_service.S3ImageService
 }
 
 func main() {
@@ -89,9 +96,17 @@ func main() {
 	flag.IntVar(&cfg.ratelimit.ipRateLimit, "ip-rate-limit", 30, "IP rate limit")
 	flag.IntVar(&cfg.ratelimit.noteRateLimit, "note-rate-limit", 5, "Note rate limit")
 
+	flag.StringVar(&cfg.redisConfig.Host, "redis-host", "localhost", "Redis Host")
+	flag.StringVar(&cfg.redisConfig.Port, "redis-port", "6379", "Redis Port")
+	flag.StringVar(&cfg.redisConfig.Password, "redis-password", "", "Redis Password")
+	flag.IntVar(&cfg.redisConfig.DB, "redis-db", 0, "Redis DB")
+	flag.IntVar(&cfg.redisConfig.PoolSize, "redis-poolsize", 10, "Redis Pool Size")
+
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	// DB connections
 
 	db, err := openDB(cfg)
 	if err != nil {
@@ -100,10 +115,18 @@ func main() {
 	}
 	logger.Info("Successful connection to database")
 
+	redisClient, err := cache.NewRedisClient(cfg.redisConfig, 24*time.Hour)
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
+
 	books := make(map[string]struct{}, 66)
 	for _, bookTitle := range data.AllBooks {
 		books[bookTitle] = struct{}{}
 	}
+
+	logger.Info("Successful connection to redis")
 
 	booksSearchIndex := data.BuildBookSearchIndex(data.AllBooks)
 
@@ -113,15 +136,25 @@ func main() {
 		os.Exit(1)
 	}
 
+	s3Config, err := s3_service.NewS3Config(context.Background())
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
+
+	s3ImageService := s3_service.NewS3ImageService(s3Config)
+
 	app := application{
 		config:           cfg,
 		books:            books,
 		booksSearchIndex: booksSearchIndex,
 		logger:           logger,
+		redis:            redisClient,
 		models:           data.NewModels(db),
 		mailer:           mailer,
 		ipRateLimiter:    ratelimit.NewRateLimiter(cfg.ratelimit.ipRateLimit, time.Second),
 		noteRateLimiter:  ratelimit.NewRateLimiter(cfg.ratelimit.noteRateLimit, time.Second),
+		s3ImageService:   s3ImageService,
 	}
 
 	err = app.serve()

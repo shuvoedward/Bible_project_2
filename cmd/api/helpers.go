@@ -184,3 +184,4 @@ func (app *application) parseNoteQuery(r *http.Request) (*data.NoteQueryParams, 
 		NoteType: noteType,
 	}, nil
 }
+

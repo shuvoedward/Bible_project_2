@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"shuvoedward/Bible_project/internal/data"
 	"shuvoedward/Bible_project/internal/validator"
+	"strconv"
 	"strings"
 )
 
@@ -35,6 +36,34 @@ func (app *application) authenticate(next http.Handler) http.Handler {
 
 		if !v.Valid() {
 			app.invalidAuthTokenResponse(w, r)
+			return
+		}
+
+		// use redis
+		userDataStr, err := app.redis.GetForToken(token)
+		if err != nil {
+			app.logger.Error(err.Error())
+		}
+
+		if userDataStr != "" {
+			// userId, activated
+			// id:userID,activated:t
+			tempUserData := strings.Split(userDataStr, ",")
+			idStr, _ := strings.CutPrefix(tempUserData[0], "id:")
+			activatedStr, _ := strings.CutPrefix(tempUserData[1], "activated:")
+
+			id, _ := strconv.ParseInt(idStr, 10, 64)
+			activated, _ := strconv.ParseBool(activatedStr)
+
+			user := &data.User{
+				ID:        id,
+				Activated: activated,
+			}
+
+			r = app.contextSetUser(r, user)
+
+			next.ServeHTTP(w, r)
+
 			return
 		}
 

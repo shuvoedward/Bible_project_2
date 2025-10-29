@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"shuvoedward/Bible_project/internal/data"
@@ -8,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func (app *application) createNoteHandler(w http.ResponseWriter, r *http.Request) {
@@ -119,6 +121,18 @@ func (app *application) deleteNoteHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Does not verify user, Delete verifies it
+	images, err := app.models.NoteImages.GetForNote(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
 	err = app.models.Notes.Delete(id, user.ID)
 	if err != nil {
 		switch {
@@ -128,6 +142,15 @@ func (app *application) deleteNoteHandler(w http.ResponseWriter, r *http.Request
 			app.serverErrorResponse(w, r, err)
 		}
 		return
+	}
+
+	for _, image := range images {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		err := app.s3ImageService.DeleteImage(ctx, image.S3Key)
+		if err != nil {
+			app.logger.Error("failed to delete image: %w", err)
+		}
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -385,7 +408,28 @@ func (app *application) getNoteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = app.writeJSON(w, http.StatusOK, envelope{"note": noteResponse}, nil)
+	var imageData []*data.ImageData
+
+	imageData, err = app.models.NoteImages.GetForNote(noteResponse.ID)
+	if err != nil {
+		if !errors.Is(err, data.ErrRecordNotFound) {
+			app.logger.Error("failed to retrieve images: %w", err)
+		}
+	}
+
+	for _, image := range imageData {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		presignedURL, err := app.s3ImageService.GeneratePresignedURL(ctx, image.S3Key, 3*time.Hour)
+		if err != nil {
+			app.logger.Error("failed to generate presigned url: %w", err)
+		}
+
+		image.PresignedURL = presignedURL
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"note": noteResponse, "images": imageData}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

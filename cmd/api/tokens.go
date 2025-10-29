@@ -63,6 +63,11 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 		return
 	}
 
+	err = app.redis.SetToken(token.Plaintext, user.ID, user.Activated)
+	if err != nil {
+		app.logger.Error(err.Error())
+	}
+
 	err = app.writeJSON(w, http.StatusCreated, envelope{"authentication_token": token}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
