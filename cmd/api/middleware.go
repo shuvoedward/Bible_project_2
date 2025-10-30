@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"shuvoedward/Bible_project/internal/data"
 	"shuvoedward/Bible_project/internal/validator"
@@ -112,6 +113,20 @@ func (app *application) enableCORS(next http.Handler) http.Handler {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (app *application) recoverPanic(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			pv := recover()
+			if pv != nil {
+				w.Header().Set("Connection", "close")
+				app.serverErrorResponse(w, r, fmt.Errorf("%v", pv))
+			}
+		}()
 
 		next.ServeHTTP(w, r)
 	})
