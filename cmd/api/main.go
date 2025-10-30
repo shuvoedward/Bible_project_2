@@ -41,7 +41,10 @@ type config struct {
 	LanguageToolURL string
 
 	db struct {
-		dsn string
+		dsn          string
+		maxOpenConns int
+		maxIdleConns int
+		maxIdleTime  time.Duration
 	}
 
 	smtp struct {
@@ -60,6 +63,8 @@ type config struct {
 	}
 
 	redisConfig cache.RedisConfig
+
+	corsTrustedOrigin string
 }
 
 type application struct {
@@ -86,6 +91,9 @@ func main() {
 	flag.StringVar(&cfg.LanguageToolURL, "languageToolURL", "", "LanguageTool URL")
 
 	flag.StringVar(&cfg.db.dsn, "db-dsn", "", "PostgreSQL DSN")
+	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "PostgreSQL max open connection")
+	flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", 25, "PostgreSQL max idle connection")
+	flag.DurationVar(&cfg.db.maxIdleTime, "db-max-idle-time", 15*time.Minute, "PostgreSQL max connection idle time")
 
 	flag.StringVar(&cfg.smtp.host, "smtp-host", "sandbox.smtp.mailtrap.io", "SMTP host")
 	flag.IntVar(&cfg.smtp.port, "smtp-port", 25, "SMTP port")
@@ -101,6 +109,8 @@ func main() {
 	flag.StringVar(&cfg.redisConfig.Password, "redis-password", "", "Redis Password")
 	flag.IntVar(&cfg.redisConfig.DB, "redis-db", 0, "Redis DB")
 	flag.IntVar(&cfg.redisConfig.PoolSize, "redis-poolsize", 10, "Redis Pool Size")
+
+	flag.StringVar(&cfg.corsTrustedOrigin, "cors-trusted-origin", "https://localhost:9000", "Cross Origin Trusted")
 
 	flag.Parse()
 
@@ -170,7 +180,14 @@ func openDB(cfg config) (*sql.DB, error) {
 		return nil, err
 	}
 
-	err = db.Ping()
+	db.SetMaxOpenConns(cfg.db.maxOpenConns)
+	db.SetMaxIdleConns(cfg.db.maxIdleConns)
+	db.SetConnMaxIdleTime(cfg.db.maxIdleTime)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err = db.PingContext(ctx)
 	if err != nil {
 		db.Close()
 		return nil, err
