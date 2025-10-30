@@ -68,6 +68,8 @@ type config struct {
 }
 
 type application struct {
+	ctx              context.Context
+	cancel           context.CancelFunc
 	config           config
 	books            map[string]struct{}
 	booksSearchIndex map[string][]string
@@ -116,6 +118,8 @@ func main() {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	// DB connections
 
 	db, err := openDB(cfg)
@@ -155,6 +159,8 @@ func main() {
 	s3ImageService := s3_service.NewS3ImageService(s3Config)
 
 	app := application{
+		ctx:              ctx,
+		cancel:           cancel,
 		config:           cfg,
 		books:            books,
 		booksSearchIndex: booksSearchIndex,
@@ -166,6 +172,8 @@ func main() {
 		noteRateLimiter:  ratelimit.NewRateLimiter(cfg.ratelimit.noteRateLimit, time.Second),
 		s3ImageService:   s3ImageService,
 	}
+
+	app.backgournd(app.runBackgroundTasks)
 
 	err = app.serve()
 	if err != nil {
@@ -194,4 +202,27 @@ func openDB(cfg config) (*sql.DB, error) {
 	}
 
 	return db, nil
+}
+
+func (app *application) runBackgroundTasks() {
+	ticker := time.NewTicker(6 * time.Hour)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			app.logger.Info("running scheduled token cleanup")
+
+			affectedRows, err := app.models.Tokens.DeleteExpiredToken()
+			if err != nil {
+				app.logger.Error("scheduled token cleanup failed", "error", err)
+			} else {
+				app.logger.Info("Deleted expired token", "affectedRows", affectedRows)
+			}
+
+		case <-app.ctx.Done():
+			app.logger.Info("background tasks stopping")
+			return
+		}
+	}
 }
