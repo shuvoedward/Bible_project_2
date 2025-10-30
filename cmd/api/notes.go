@@ -18,7 +18,8 @@ func (app *application) createNoteHandler(w http.ResponseWriter, r *http.Request
 
 	user := app.contextGetUser(r)
 
-	if !app.noteRateLimiter.Allow(user.ID) {
+	ip := getIP(r)
+	if !app.noteRateLimiter.Allow(ip) {
 		app.rateLimitExceededResponse(w, r)
 		return
 	}

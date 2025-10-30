@@ -6,7 +6,7 @@ import (
 )
 
 type RateLimiter struct {
-	requests map[int64][]time.Time
+	requests map[string][]time.Time
 	mu       sync.RWMutex
 	limit    int
 	window   time.Duration
@@ -14,7 +14,7 @@ type RateLimiter struct {
 
 func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
 	rl := &RateLimiter{
-		requests: make(map[int64][]time.Time),
+		requests: make(map[string][]time.Time),
 		limit:    limit,
 		window:   window,
 	}
@@ -24,14 +24,14 @@ func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
 	return rl
 }
 
-func (rl *RateLimiter) Allow(id int64) bool {
+func (rl *RateLimiter) Allow(ip string) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
 	now := time.Now()
 	cutoff := now.Add(-rl.window)
 
-	timestamps := rl.requests[id]
+	timestamps := rl.requests[ip]
 
 	valid := []time.Time{}
 	for _, ts := range timestamps {
@@ -41,12 +41,12 @@ func (rl *RateLimiter) Allow(id int64) bool {
 	}
 
 	if len(valid) >= rl.limit {
-		rl.requests[id] = valid
+		rl.requests[ip] = valid
 		return false
 	}
 
 	valid = append(valid, now)
-	rl.requests[id] = valid
+	rl.requests[ip] = valid
 
 	return true
 }
@@ -60,7 +60,7 @@ func (rl *RateLimiter) cleanup() {
 		now := time.Now()
 		cutoff := now.Add(-rl.window)
 
-		for id, timestamps := range rl.requests {
+		for ip, timestamps := range rl.requests {
 
 			valid := []time.Time{}
 			for _, ts := range timestamps {
@@ -71,9 +71,9 @@ func (rl *RateLimiter) cleanup() {
 
 			// Remove entry if no recent requests
 			if len(valid) == 0 {
-				delete(rl.requests, id)
+				delete(rl.requests, ip)
 			} else {
-				rl.requests[id] = valid
+				rl.requests[ip] = valid
 			}
 
 		}

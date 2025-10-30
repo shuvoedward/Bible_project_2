@@ -17,9 +17,11 @@ package main
 import (
 	"context"
 	"database/sql"
+	"expvar"
 	"flag"
 	"log/slog"
 	"os"
+	"runtime"
 	"shuvoedward/Bible_project/internal/cache"
 	"shuvoedward/Bible_project/internal/data"
 	"shuvoedward/Bible_project/internal/mailer"
@@ -55,8 +57,9 @@ type config struct {
 		sender   string
 	}
 
-	ratelimit struct {
-		ipRateLimit int
+	limiter struct {
+		authRatelimit int
+		ipRateLimit   int
 		// ipRateLimitWindow   time.Duration
 		noteRateLimit int
 		// noteRateLimitWindow time.Duration
@@ -78,6 +81,7 @@ type application struct {
 	models           data.Models
 	mailer           *mailer.Mailer
 	wg               sync.WaitGroup
+	authRateLimiter  *ratelimit.RateLimiter
 	ipRateLimiter    *ratelimit.RateLimiter
 	noteRateLimiter  *ratelimit.RateLimiter // TODO: Change name to note to writeRateLimit
 	s3ImageService   *s3_service.S3ImageService
@@ -103,8 +107,9 @@ func main() {
 	flag.StringVar(&cfg.smtp.password, "smtp-password", "8f8adcaf82b8a4", "SMTP password")
 	flag.StringVar(&cfg.smtp.sender, "smtp-sender", "<no-reply@bible.edward.net>", "SMTP sender")
 
-	flag.IntVar(&cfg.ratelimit.ipRateLimit, "ip-rate-limit", 30, "IP rate limit")
-	flag.IntVar(&cfg.ratelimit.noteRateLimit, "note-rate-limit", 5, "Note rate limit")
+	flag.IntVar(&cfg.limiter.ipRateLimit, "ip-rate-limit", 200, "IP rate limit minutes")
+	flag.IntVar(&cfg.limiter.noteRateLimit, "note-rate-limit", 30, "Note rate limit in minutes")
+	flag.IntVar(&cfg.limiter.authRatelimit, "auth-rate-limit", 15, "Auth rate limit in minutes")
 
 	flag.StringVar(&cfg.redisConfig.Host, "redis-host", "localhost", "Redis Host")
 	flag.StringVar(&cfg.redisConfig.Port, "redis-port", "6379", "Redis Port")
@@ -158,6 +163,20 @@ func main() {
 
 	s3ImageService := s3_service.NewS3ImageService(s3Config)
 
+	expvar.NewString("version").Set(version)
+
+	expvar.Publish("goroutines", expvar.Func(func() any {
+		return runtime.NumGoroutine()
+	}))
+
+	expvar.Publish("database", expvar.Func(func() any {
+		return db.Stats()
+	}))
+
+	expvar.Publish("timestamp", expvar.Func(func() any {
+		return time.Now().Unix()
+	}))
+
 	app := application{
 		ctx:              ctx,
 		cancel:           cancel,
@@ -168,8 +187,9 @@ func main() {
 		redis:            redisClient,
 		models:           data.NewModels(db),
 		mailer:           mailer,
-		ipRateLimiter:    ratelimit.NewRateLimiter(cfg.ratelimit.ipRateLimit, time.Second),
-		noteRateLimiter:  ratelimit.NewRateLimiter(cfg.ratelimit.noteRateLimit, time.Second),
+		ipRateLimiter:    ratelimit.NewRateLimiter(cfg.limiter.ipRateLimit, time.Minute),
+		noteRateLimiter:  ratelimit.NewRateLimiter(cfg.limiter.noteRateLimit, time.Minute),
+		authRateLimiter:  ratelimit.NewRateLimiter(cfg.limiter.authRatelimit, time.Minute),
 		s3ImageService:   s3ImageService,
 	}
 
