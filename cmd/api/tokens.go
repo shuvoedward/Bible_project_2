@@ -9,6 +9,19 @@ import (
 	"time"
 )
 
+// createAuthenticationTokenHandler authenticates a user and returns a token
+// @Summary User login
+// @Description Authenticate user with email and password, returns a token valid for 24 hours
+// @Tags authentication
+// @Accept json
+// @Produce json
+// @Param credentials body object{email=string,password=string} true "Login credentials" example({"email": "user@example.com", "password": "password123"})
+// @Success 201 {object} object{authentication_token=data.Token} "Successfully authenticated"
+// @Failure 400 {object} object{error=string} "Invalid request body"
+// @Failure 401 {object} object{error=string} "Invalid credentials"
+// @Failure 422 {object} object{error=map[string]string} "Validation failed"
+// @Failure 500 {object} object{error=string} "Internal server error"
+// @Router /v1/tokens/authentication [post]
 func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Email    string `json:"email"`
@@ -75,6 +88,18 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 	}
 }
 
+// createPasswordResetTokenHandler generates a password reset token and sends reset email
+// @Summary Request password reset
+// @Description Generate a password reset token and send reset instructions via email. Token valid for 45 minutes.
+// @Tags authentication
+// @Accept json
+// @Produce json
+// @Param email body object{email=string} true "User email" example({"email": "user@example.com"})
+// @Success 202 {object} object{message=string} "Password reset email will be sent"
+// @Failure 400 {object} object{error=string} "Invalid request body"
+// @Failure 422 {object} object{error=map[string]string} "Validation failed (email not found or account not activated)"
+// @Failure 500 {object} object{error=string} "Internal server error"
+// @Router /v1/tokens/password-reset [get]
 func (app *application) createPasswordResetTokenHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Email string `json:"email"`
@@ -100,7 +125,7 @@ func (app *application) createPasswordResetTokenHandler(w http.ResponseWriter, r
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
-			v.AddError("email", "no matching email address found")
+			v.AddError("email", "If an account exists with that email, password reset instructions will be sent")
 			app.failedValidationResponse(w, r, v.Errors)
 		default:
 			app.serverErrorResponse(w, r, err)
@@ -120,7 +145,9 @@ func (app *application) createPasswordResetTokenHandler(w http.ResponseWriter, r
 		return
 	}
 
-	app.backgournd(func() {
+	// TODO: change url based on production variable
+
+	app.background(func() {
 		data := map[string]any{
 			"passwordResetURL": fmt.Sprintf("http://localhost:4000/v1/users/password/%s", token.Plaintext),
 		}

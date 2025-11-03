@@ -57,7 +57,7 @@ type PassageModel interface {
 	Get(filters *LocationFilters) (*Passage, error)
 	SuggestWords(word string) ([]*WordMatch, error)
 	SuggestVerses(phrase string) ([]*VerseMatch, error)
-	SearchVersesByWord(params SearchQueryParams) ([]*VerseMatch, error)
+	SearchVersesByWord(searchQuery string, filters Filters) ([]*VerseMatch, Metadata, error)
 }
 
 type VerseDetail struct {
@@ -87,10 +87,11 @@ type VerseMatch struct {
 	ExactMatch string
 	Snippet    string
 }
-type SearchQueryParams struct {
-	Filters
-	Word string
-}
+
+//	type SearchQueryParams struct {
+//		Filters
+//		Word string
+//	}
 type passageModel struct {
 	DB *sql.DB
 }
@@ -272,50 +273,85 @@ func (p passageModel) SuggestVerses(phrase string) ([]*VerseMatch, error) {
 	return list, nil
 }
 
-func (p passageModel) SearchVersesByWord(params SearchQueryParams) ([]*VerseMatch, error) {
+// SearchVersesByWord performs a full-text search on Bible verses using PostgreSQL's
+// text search capabilities. It returns matching verses ranked by relevance, along with
+// highlighted snippets and pagination metadata.
+//
+// The function uses websearch_to_tsquery which supports Google-like search syntax:
+//   - "faith hope" searches for faith OR hope
+//   - "faith and hope" searches for the exact phrase
+//   - "faith -doubt" searches for faith but NOT doubt
+//
+// Parameters:
+//   - searchQuery: The search terms to look for in verses
+//   - filters: Pagination parameters (Page, PageSize)
+//
+// Returns:
+//   - []*VerseMatch: Slice of matching verses with relevance scores and snippets
+//   - Metadata: Pagination info (current page, total pages, total records, etc.)
+//   - error: Any error encountered during the search
+func (p passageModel) SearchVersesByWord(searchQuery string, filters Filters) ([]*VerseMatch, Metadata, error) {
 	query := `
+	WITH counted AS (
 		SELECT 
 			v.id, b.name, v.chapter, v.verse, v.text, 
+			
+			-- ts_rank: Calculates relevance score (0.0 to 1.0)
+       		-- Higher score = better match
+        	-- Compares search_vector against the search query
  		   	ts_rank(search_vector, websearch_to_tsquery('simple', lower($1))) AS rank,
-			ts_headline('simple', text, websearch_to_tsquery('simple', $1)) AS snippet
+			
+			-- ts_headline: Generates a snippet with search terms highlighted
+        	-- Shows context around where the match was found
+        	-- By default, wraps matching words in <b></b> tags
+			ts_headline('simple', text, websearch_to_tsquery('simple', $1)) AS snippet,
+			
+			COUNT(*) OVER() AS total_count
 		FROM 
 			verses v
 		JOIN 
 			books b ON v.book_id = b.id
 		WHERE 
 			search_vector @@ websearch_to_tsquery('simple', $1)
-		ORDER BY 
-			rank DESC
-		LIMIT $2
-		OFFSET $3
+	)
+	SELECT * FROM counted
+	ORDER BY
+		rank DESC
+	LIMIT $2
+	OFFSET $3
 	`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rows, err := p.DB.QueryContext(ctx, query, params.Word, params.limit(), params.offset())
+	rows, err := p.DB.QueryContext(ctx, query, searchQuery, filters.limit(), filters.offset())
 	if err != nil {
-		return nil, err
+		return nil, Metadata{}, err
 	}
 	defer rows.Close()
 
 	var list []*VerseMatch
 
+	// Will hold the total count of all matches (before pagination)
+	// Same value for all rows, we just capture it from the first row
+	var totalCount int
+
 	for rows.Next() {
 		var verse VerseMatch
 
 		err := rows.Scan(
-			&verse.ID,
-			&verse.Book,
-			&verse.Chapter,
-			&verse.Verse,
-			&verse.Text,
-			&verse.Rank,
-			&verse.Snippet,
+			&verse.ID,      // v.id
+			&verse.Book,    // b.name
+			&verse.Chapter, // v.chapter
+			&verse.Verse,   // v.verse
+			&verse.Text,    // v.text
+			&verse.Rank,    // ts_rank() result
+			&verse.Snippet, // ts_headline() result with highlighted terms
+			&totalCount,    // COUNT(*) OVER() - total matches before LIMIT/OFFSET
 		)
 
 		if err != nil {
-			return nil, err
+			return nil, Metadata{}, err
 		}
 
 		list = append(list, &verse)
@@ -323,8 +359,10 @@ func (p passageModel) SearchVersesByWord(params SearchQueryParams) ([]*VerseMatc
 
 	err = rows.Err()
 	if err != nil {
-		return nil, err
+		return nil, Metadata{}, err
 	}
 
-	return list, nil
+	metadata := calculateMetadata(totalCount, filters.Page, filters.PageSize)
+
+	return list, metadata, nil
 }

@@ -8,10 +8,10 @@
 
 // @host      localhost:4000
 // @BasePath  /v1
-
+// @Security ApiKeyAuth
 // @in header
 // @name Authorization
-
+// @description API token authentication. Use format: "Bearer <your-api-token>"
 package main
 
 import (
@@ -29,6 +29,8 @@ import (
 	"shuvoedward/Bible_project/internal/s3_service"
 	"sync"
 	"time"
+
+	_ "shuvoedward/Bible_project/docs"
 
 	_ "github.com/lib/pq"
 )
@@ -193,7 +195,7 @@ func main() {
 		s3ImageService:   s3ImageService,
 	}
 
-	app.backgournd(app.runBackgroundTasks)
+	app.background(app.runBackgroundTasks)
 
 	err = app.serve()
 	if err != nil {

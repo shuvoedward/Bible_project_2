@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 func (app *application) routes() http.Handler {
@@ -12,6 +13,8 @@ func (app *application) routes() http.Handler {
 
 	router.RedirectFixedPath = false
 	router.RedirectTrailingSlash = false
+
+	router.Handler(http.MethodGet, "/swagger/*any", httpSwagger.WrapHandler)
 
 	router.HandlerFunc(http.MethodGet, "/v1/healthcheck", app.healthCheckHandler)
 
@@ -32,13 +35,15 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPatch, "/v1/highlights/:id", app.requireActivatedUser(app.generalRateLimit(app.updateHighlightHandler)))
 	router.HandlerFunc(http.MethodDelete, "/v1/highlights/:id", app.requireActivatedUser(app.generalRateLimit(app.deleteHighlightHandler)))
 
-	router.HandlerFunc(http.MethodPost, "/v1/grammar/check", app.requireActivatedUser(app.grammarCheckHanlder))
+	router.HandlerFunc(http.MethodPost, "/v1/grammar/check", app.requireActivatedUser(app.grammarCheckHandler))
 
-	router.HandlerFunc(http.MethodGet, "/v1/notes", app.requireActivatedUser(app.generalRateLimit(app.listNotesHandler)))
+	router.HandlerFunc(http.MethodGet, "/v1/notes", app.requireActivatedUser(app.generalRateLimit(app.listNotesMetadataHandler)))
 	router.HandlerFunc(http.MethodGet, "/v1/notes/:id", app.requireActivatedUser(app.generalRateLimit(app.getNoteHandler)))
 	router.HandlerFunc(http.MethodPost, "/v1/notes", app.requireActivatedUser(app.createNoteHandler))
 	router.HandlerFunc(http.MethodDelete, "/v1/notes/:id", app.requireActivatedUser(app.generalRateLimit(app.deleteNoteHandler)))
 	router.HandlerFunc(http.MethodPut, "/v1/notes/:id", app.requireActivatedUser(app.generalRateLimit(app.updateNoteHandler)))
+
+	// link
 	router.HandlerFunc(http.MethodPost, "/v1/notes/:id/locations", app.requireActivatedUser(app.generalRateLimit(app.linkNoteHandler)))
 	router.HandlerFunc(http.MethodDelete, "/v1/notes/:id/locations/:locationID", app.requireActivatedUser(app.generalRateLimit(app.deleteLinkHandler)))
 

@@ -73,6 +73,9 @@ func (m imageModel) Insert(userID int64, input *ImageData) (*ImageData, error) {
 	return &response, nil
 }
 
+// Delete removes an image record from the database
+// Returns ErrRecordNotFound if the image doesn't exist, doesn't belong to the note,
+// or the note doesn't belong to the user
 func (m imageModel) Delete(userID int64, noteID int64, s3Key string) error {
 	query := `
 		DELETE FROM 
@@ -94,8 +97,12 @@ func (m imageModel) Delete(userID int64, noteID int64, s3Key string) error {
 		return err
 	}
 
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected == 0 {
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected < 1 {
 		return ErrRecordNotFound
 	}
 

@@ -5,6 +5,8 @@ import (
 	"errors"
 )
 
+const UniqueViolation = "23505"
+
 var (
 	ErrRecordNotFound = errors.New("record not found")
 	ErrEditConflict   = errors.New("edit conflict")

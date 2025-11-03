@@ -15,6 +15,10 @@ import (
 
 type envelope map[string]any
 
+// getLocationFilters extracts and parses Bible location parameters from the request.
+// It retrieves the book name and chapter from URL path parameters, and optionally
+// extracts start verse (svs) and end verse (evs) from query parameters.
+// Returns a LocationFilters struct or an error if parsing fails.
 func (app *application) getLocationFilters(r *http.Request) (*data.LocationFilters, error) {
 	params := httprouter.ParamsFromContext(r.Context())
 	book := params.ByName("book")
@@ -118,7 +122,7 @@ func (app *application) readJSON(r *http.Request, dst any) error {
 	return nil
 }
 
-func (app *application) backgournd(fn func()) {
+func (app *application) background(fn func()) {
 	app.wg.Go(func() {
 		defer func() {
 			pv := recover()
@@ -185,3 +189,26 @@ func (app *application) parseNoteQuery(r *http.Request) (*data.NoteQueryParams, 
 	}, nil
 }
 
+func (app *application) readPaginationParams(r *http.Request) (data.Filters, error) {
+	query := r.URL.Query()
+
+	page := 1 // default
+	if query.Has("page") {
+		var err error
+		page, err = strconv.Atoi(query.Get("page"))
+		if err != nil || page < 1 {
+			return data.Filters{}, errors.New("page must be a positive integer")
+		}
+	}
+
+	pageSize := 10 // default
+	if query.Has("page_size") {
+		var err error
+		pageSize, err = strconv.Atoi(query.Get("page_size"))
+		if err != nil || pageSize < 1 || pageSize > 100 {
+			return data.Filters{}, errors.New("page_size must be between 1 and 100")
+		}
+	}
+
+	return data.Filters{Page: page, PageSize: pageSize}, nil
+}

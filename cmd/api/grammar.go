@@ -18,7 +18,19 @@ type GrammarResponse struct {
 	Matches []GrammarMatch `json:"matches"`
 }
 
-func (app *application) grammarCheckHanlder(w http.ResponseWriter, r *http.Request) {
+// grammarCheckHandler checks text for grammar and spelling errors
+// @Summary Check grammar and spelling
+// @Description Check text for grammar, spelling, and style issues using LanguageTool API
+// @Tags grammar
+// @Accept json
+// @Produce json
+// @Param input body object{text=string} true "Text to check" example({"text": "This are a sample text with mistake."})
+// @Success 200 {object} object{matches=GrammarResponse} "Grammar check results with suggestions"
+// @Failure 400 {object} object{error=string} "Invalid request body"
+// @Failure 500 {object} object{error=string} "Internal server error or LanguageTool API error"
+// @Security ApiKeyAuth
+// @Router /v1/grammar/check [post]
+func (app *application) grammarCheckHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Text string `json:"text"`
 	}
@@ -29,10 +41,13 @@ func (app *application) grammarCheckHanlder(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Send text to LanguageTool API for grammar checking
+	// Language is hardcoded to en-US
 	resp, err := http.PostForm(app.config.LanguageToolURL, url.Values{
 		"text":     {input.Text},
 		"language": {"en-US"},
 	})
+
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -40,6 +55,7 @@ func (app *application) grammarCheckHanlder(w http.ResponseWriter, r *http.Reque
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		err = fmt.Errorf("languageTool API returned status: %d", resp.StatusCode)
 		app.serverErrorResponse(w, r, err)
 		return
 	}
@@ -51,8 +67,6 @@ func (app *application) grammarCheckHanlder(w http.ResponseWriter, r *http.Reque
 		app.serverErrorResponse(w, r, err)
 		return
 	}
-
-	fmt.Println(result)
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"matches": result}, nil)
 	if err != nil {

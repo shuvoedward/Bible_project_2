@@ -63,7 +63,15 @@ func (m tokenModel) Insert(token *Token) error {
 		INSERT INTO tokens 
 			(hash, user_id, expiry, scope)
 		VALUES 
-			($1, $2, $3, $4)`
+			($1, $2, $3, $4)
+		ON CONFLICT 
+			(user_id, scope)
+		WHERE 
+			scope IN ('activation', 'password-reset')
+		DO UPDATE SET
+			hash = EXCLUDED.hash,
+			expiry = EXCLUDED.expiry
+		`
 
 	args := []any{token.Hash, token.UserID, token.Expiry, token.Scope}
 
@@ -71,6 +79,7 @@ func (m tokenModel) Insert(token *Token) error {
 	defer cancel()
 
 	_, err := m.DB.ExecContext(ctx, query, args...)
+
 	return err
 }
 

@@ -15,8 +15,22 @@ import (
 	_ "golang.org/x/image/webp"
 )
 
-// post v1/notes/:noteid/images
+// imageUploadHandler handles image upload for a specific note
+// @Summary Upload image to note
+// @Description Upload and process an image file, then attach it to a note owned by the authenticated user
+// @Tags images
+// @Accept multipart/form-data
+// @Produce json
+// @Param id path int true "Note ID"
+// @Param image formData file true "Image file (JPEG, PNG, WebP, HEIC, HEIF)"
+// @Success 201 {object} object{imageData=data.ImageData} "Successfully uploaded and processed image"
+// @Failure 400 {object} object{error=string} "Invalid request (bad note ID, file size exceeded, or invalid file format)"
+// @Failure 404 {object} object{error=string} "Note not found or unauthorized"
+// @Failure 500 {object} object{error=string} "Internal server error"
+// @Security ApiKeyAuth
+// @Router /notes/{id}/images [post]
 func (app *application) imageUploadHandler(w http.ResponseWriter, r *http.Request) {
+	// post v1/notes/:noteid/images
 	user := app.contextGetUser(r)
 
 	noteID, err := app.readIDParam(r, "id")
@@ -135,11 +149,20 @@ func (app *application) imageUploadHandler(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+// imageDeleteHandler deletes an image from a note
+// @Summary Delete image from note
+// @Description Delete an image attachment from a note owned by the authenticated user. Removes both database record and S3 object.
+// @Tags images
+// @Param id path int true "Note ID"
+// @Param s3_key path string true "S3 Key of the image (URL encoded)"
+// @Success 204 "Successfully deleted image"
+// @Failure 400 {object} object{error=string} "Invalid note ID"
+// @Failure 404 {object} object{error=string} "Image not found or unauthorized"
+// @Failure 500 {object} object{error=string} "Internal server error"
+// @Security ApiAuthKey
+// @Router /notes/{id}/images/{s3_key} [delete]
 func (app *application) imageDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	// route v1/notes/noteid/images/:s3key  - method delete
-	// check the note belong to the user
-	// delete from db
-	// delete from s3
 	user := app.contextGetUser(r)
 
 	noteID, err := app.readIDParam(r, "id")
@@ -150,9 +173,25 @@ func (app *application) imageDeleteHandler(w http.ResponseWriter, r *http.Reques
 
 	params := httprouter.ParamsFromContext(r.Context())
 	s3Key := params.ByName("s3_key")
-	s3Key = s3Key[1:]
-	// validate s3Key
 
+	// Remove leading slash from S3 key (httprouter includes it)
+	s3Key = s3Key[1:]
+	// TODO: Add validation for s3Key format if needed
+	// e.g., check for empty string, valid characters, expected patterny
+
+	// delete from s3
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err = app.s3ImageService.DeleteImage(ctx, s3Key)
+	if err != nil {
+		// Note: Database record is already deleted at this point
+		// Consider logging this error for manual S3 cleanup
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	// Delete image metadata from database
+	// This verifies the user owns the note and the image exists
 	err = app.models.NoteImages.Delete(user.ID, noteID, s3Key)
 	if err != nil {
 		switch {
@@ -161,15 +200,6 @@ func (app *application) imageDeleteHandler(w http.ResponseWriter, r *http.Reques
 		default:
 			app.serverErrorResponse(w, r, err)
 		}
-		return
-	}
-
-	// delete from s3
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	err = app.s3ImageService.DeleteImage(ctx, s3Key)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
 		return
 	}
 

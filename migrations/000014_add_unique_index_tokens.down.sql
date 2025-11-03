@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_tokens_user_scope_verification;

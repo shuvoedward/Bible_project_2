@@ -34,3 +34,26 @@ func (f Filters) sortDirection() string {
 	}
 	return "ASC"
 }
+
+type Metadata struct {
+	CurrentPage  int `json:"current_page,omitzero"`
+	PageSize     int `json:"page_size,omitzero"`
+	FirstPage    int `json:"first_page,omitzero"`
+	LastPage     int `json:"last_page,omitzero"`
+	TotalRecords int `json:"total_records,omitzero"`
+}
+
+func calculateMetadata(totalRecords, page, pageSize int) Metadata {
+	if totalRecords == 0 {
+		// Note that we return an empty Metadata struct if there are no records.
+		return Metadata{}
+	}
+
+	return Metadata{
+		CurrentPage:  page,
+		PageSize:     pageSize,
+		FirstPage:    1,
+		LastPage:     (totalRecords + pageSize - 1) / pageSize,
+		TotalRecords: totalRecords,
+	}
+}

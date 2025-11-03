@@ -46,3 +46,59 @@ func TestGetChapterOrVerses(t *testing.T) {
 	}
 
 }
+
+func TestAutoCompleteHandler_Book(t *testing.T) {
+	testRouter := testApp.routes()
+
+	rr := httptest.NewRecorder()
+
+	req, err := http.NewRequest("GET", "/v1/autocomplete?q=joh", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testRouter.ServeHTTP(rr, req)
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v wants %v", status, http.StatusOK)
+	}
+
+}
+
+func TestAutoCompleteHandler_Word(t *testing.T) {
+	testRouter := testApp.routes()
+	rr := httptest.NewRecorder()
+	req, err := http.NewRequest("GET", "/v1/autocomplete?q=faith", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testRouter.ServeHTTP(rr, req)
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+}
+
+func TestAutoCompleteHandler_Verse(t *testing.T) {
+	testRouter := testApp.routes()
+	rr := httptest.NewRecorder()
+	req, err := http.NewRequest("GET", "/v1/autocomplete?q=john 3:16", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testRouter.ServeHTTP(rr, req)
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+}
+
+func TestSearchHandler(t *testing.T) {
+	testRouter := testApp.routes()
+	rr := httptest.NewRecorder()
+	req, err := http.NewRequest("GET", "/v1/search?q=love", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testRouter.ServeHTTP(rr, req)
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+}

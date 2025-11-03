@@ -11,9 +11,18 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
+// @Summary Register a new user
+// @Description Register a new user account with name, email, and password. Sends activation email.
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param input body object{name=string,email=string,password=string} true "User registration details"
+// @Success 201 {object} object{user=data.User} "User created successfully"
+// @Failure 400 {object} object{error=string} "Invalid request payload"
+// @Failure 422 {object} object{error=map[string]string} "Validation failed"
+// @Failure 500 {object} object{error=string} "Internal server error"
+// @Router /v1/users [post]
 func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Request) {
-	// get user data from body
-	// email, password, name(full Name)
 	var input struct {
 		Name     string `json:"name"`
 		Email    string `json:"email"`
@@ -73,7 +82,7 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	app.backgournd(func() {
+	app.background(func() {
 		data := map[string]any{
 			"username":      user.Name,
 			"activationURL": fmt.Sprintf("http://localhost:4000/v1/users/activated/%s", token.Plaintext),
@@ -91,6 +100,17 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 	}
 }
 
+// @Summary Activate user account
+// @Description Activate a user account using the activation token from email
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param token path string true "Activation token"
+// @Success 200 {object} object{user=data.User} "User activated successfully"
+// @Failure 422 {object} object{error=map[string]string} "Invalid or expired token"
+// @Failure 409 {object} object{error=string} "Edit conflict"
+// @Failure 500 {object} object{error=string} "Internal server error"
+// @Router /v1/users/activated/{token} [put]
 func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Request) {
 	params := httprouter.ParamsFromContext(r.Context())
 	token := params.ByName("token")
@@ -135,6 +155,18 @@ func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 	}
 }
 
+// @Summary Update user password
+// @Description Reset user password using a password reset token
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param input body object{password=string,token=string} true "New password and reset token"
+// @Success 200 {object} object{message=string} "Password reset successfully"
+// @Failure 400 {object} object{error=string} "Invalid request payload"
+// @Failure 422 {object} object{error=map[string]string} "Invalid or expired token"
+// @Failure 409 {object} object{error=string} "Edit conflict"
+// @Failure 500 {object} object{error=string} "Internal server error"
+// @Router /v1/users/password [put]
 func (app *application) updateUserPasswordHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Password       string `json:"password"`

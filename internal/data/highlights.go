@@ -15,7 +15,7 @@ type HighlightModel interface {
 
 type Highlight struct {
 	ID          int64     `json:"id"`
-	UserID      *int64    `json:"-"`
+	UserID      *int64    `json:"-" swaggerignore:"true"`
 	Book        string    `json:"book"`
 	Chapter     int       `json:"chapter"`
 	StartVerse  int       `json:"start_verse"`
@@ -37,23 +37,19 @@ func NewHighlightModel(db *sql.DB) *highlightModel {
 	}
 }
 
+// Insert creates a new highlight record and populates the ID and CreatedAt fields
+// of the provided highlight pointer.
 func (m highlightModel) Insert(highlight *Highlight) error {
 	query := `
 		INSERT INTO highlights
-		(user_id, book_id, chapter, start_verse, end_verse, start_offset, end_offset, color)
+			(user_id, book_id, chapter, start_verse, end_verse, start_offset, end_offset, color)
 		SELECT
-			$1, 
-			(SELECT id FROM books WHERE name = $2), 
-			$3, 
-			$4, 
-			$5, 
-			$6, 
-			$7, 
-			$8
+			$1, b.id, $3, $4, $5, $6, $7, $8
+		FROM 
+			books b
+		WHERE 
+			b.name = $2
 		RETURNING id, created_at`
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
 
 	args := []any{
 		highlight.UserID,
@@ -65,13 +61,11 @@ func (m highlightModel) Insert(highlight *Highlight) error {
 		highlight.EndOffset,
 		highlight.Color,
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
 
-	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&highlight.ID, &highlight.CreatedAt)
-	if err != nil {
-		return err
-	}
+	return m.DB.QueryRowContext(ctx, query, args...).Scan(&highlight.ID, &highlight.CreatedAt)
 
-	return nil
 }
 
 func (m highlightModel) Get(userID int64, filter *LocationFilters) ([]*Highlight, error) {
@@ -135,28 +129,39 @@ func (m highlightModel) Get(userID int64, filter *LocationFilters) ([]*Highlight
 	return highlights, nil
 }
 
-func (m highlightModel) Update(id, user_id int64, color string) error {
+// Update modifies the color of an existing highlight
+// Returns ErrRecordNotFound if the highlight doesn't exist or doesn't belong to the user
+func (m highlightModel) Update(id, userID int64, color string) error {
 	query := `
-		UPDATE highlights
-		SET color = $1, updated_at = now()
+		UPDATE 
+			highlights
+		SET 
+			color = $1, 
+			updated_at = now()
 		WHERE id = $2 AND user_id = $3`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	res, err := m.DB.ExecContext(ctx, query, color, id, user_id)
+	res, err := m.DB.ExecContext(ctx, query, color, id, userID)
 	if err != nil {
 		return err
 	}
 
-	count, err := res.RowsAffected()
-	if count < 1 {
-		// update failed
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return err
 	}
-	return err
+
+	if rowsAffected < 1 {
+		return ErrRecordNotFound
+	}
+	return nil
 }
 
-func (m highlightModel) Delete(id, userId int64) error {
+// Delete removes a highlight from the database
+// Returns ErrRecordNotFound if the highlight doesn't exist or doesn't belong to the user
+func (m highlightModel) Delete(id, userID int64) error {
 	query := `
 		DELETE FROM highlights
 		WHERE id = $1 AND user_id = $2`
@@ -164,18 +169,18 @@ func (m highlightModel) Delete(id, userId int64) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	res, err := m.DB.ExecContext(ctx, query, id, userId)
+	res, err := m.DB.ExecContext(ctx, query, id, userID)
 	if err != nil {
 		return err
 	}
 
-	count, err := res.RowsAffected()
-
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return err
 	}
-	if count == 0 {
+	if rowsAffected < 1 {
 		return ErrRecordNotFound
 	}
+
 	return nil
 }

@@ -1,0 +1,1449 @@
+basePath: /v1
+definitions:
+  cmd_api.CreateNoteInput:
+    properties:
+      book:
+        description: Bible verse location fields (only used for BIBLE and CROSS_REFERENCE
+          types)
+        type: string
+      chapter:
+        type: integer
+      content:
+        type: string
+      end_offset:
+        description: Character offset within end verse
+        type: integer
+      end_verse:
+        description: end verse must be provided, included. when just one verse, svs
+          = 1 and evs = 1.
+        type: integer
+      note_type:
+        description: '"GENERAL", "BIBLE", or "CROSS_REFERENCE"'
+        type: string
+      start_offset:
+        description: Character offset within start verse
+        type: integer
+      start_verse:
+        type: integer
+      title:
+        type: string
+    type: object
+  cmd_api.GrammarMatch:
+    properties:
+      length:
+        type: integer
+      message:
+        type: string
+      offset:
+        type: integer
+      replacements:
+        items:
+          additionalProperties:
+            type: string
+          type: object
+        type: array
+    type: object
+  cmd_api.GrammarResponse:
+    properties:
+      matches:
+        items:
+          $ref: '#/definitions/cmd_api.GrammarMatch'
+        type: array
+    type: object
+  shuvoedward_Bible_project_internal_data.Highlight:
+    properties:
+      book:
+        type: string
+      chapter:
+        type: integer
+      color:
+        type: string
+      created_at:
+        type: string
+      end_offset:
+        type: integer
+      end_verse:
+        type: integer
+      id:
+        type: integer
+      start_offset:
+        type: integer
+      start_verse:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  shuvoedward_Bible_project_internal_data.ImageData:
+    properties:
+      created_at:
+        type: string
+      file_size:
+        type: integer
+      height:
+        type: integer
+      id:
+        type: integer
+      image_url:
+        type: string
+      mime_type:
+        type: string
+      note_id:
+        type: integer
+      original_filename:
+        type: string
+      s3_key:
+        type: string
+      width:
+        type: integer
+    type: object
+  shuvoedward_Bible_project_internal_data.LocationResponse:
+    properties:
+      book:
+        type: string
+      chapter:
+        type: integer
+      end_offset:
+        type: integer
+      end_verse:
+        type: integer
+      location_id:
+        type: integer
+      start_offset:
+        type: integer
+      start_verse:
+        type: integer
+    type: object
+  shuvoedward_Bible_project_internal_data.Metadata:
+    properties:
+      current_page:
+        type: integer
+      first_page:
+        type: integer
+      last_page:
+        type: integer
+      page_size:
+        type: integer
+      total_records:
+        type: integer
+    type: object
+  shuvoedward_Bible_project_internal_data.NoteMetadata:
+    properties:
+      Preview:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      note_type:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  shuvoedward_Bible_project_internal_data.NoteResponse:
+    properties:
+      content:
+        type: string
+      created_at:
+        type: string
+      location:
+        $ref: '#/definitions/shuvoedward_Bible_project_internal_data.LocationResponse'
+      note_id:
+        type: integer
+      note_type:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  shuvoedward_Bible_project_internal_data.NoteSearchResponse:
+    properties:
+      content:
+        type: string
+      created_at:
+        type: string
+      location:
+        $ref: '#/definitions/shuvoedward_Bible_project_internal_data.LocationResponse'
+      note_id:
+        type: integer
+      note_type:
+        type: string
+      rank:
+        type: number
+      snippet:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  shuvoedward_Bible_project_internal_data.Passage:
+    properties:
+      book:
+        type: string
+      chapter:
+        type: integer
+      verses:
+        items:
+          $ref: '#/definitions/shuvoedward_Bible_project_internal_data.VerseDetail'
+        type: array
+    type: object
+  shuvoedward_Bible_project_internal_data.Token:
+    properties:
+      expiry:
+        type: string
+      token:
+        type: string
+    type: object
+  shuvoedward_Bible_project_internal_data.User:
+    properties:
+      activated:
+        type: boolean
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  shuvoedward_Bible_project_internal_data.VerseDetail:
+    properties:
+      number:
+        type: integer
+      text:
+        type: string
+      verse_id:
+        type: integer
+    type: object
+  shuvoedward_Bible_project_internal_data.VerseMatch:
+    properties:
+      book:
+        type: string
+      chapter:
+        type: integer
+      exactMatch:
+        type: string
+      id:
+        format: int64
+        type: integer
+      rank:
+        format: float64
+        type: number
+      snippet:
+        type: string
+      text:
+        type: string
+      verse:
+        type: integer
+    type: object
+  shuvoedward_Bible_project_internal_data.WordMatch:
+    properties:
+      frequency:
+        type: integer
+      lexeme:
+        type: string
+      word:
+        type: string
+    type: object
+host: localhost:4000
+info:
+  contact:
+    email: shuvoedward@gmail.com
+    name: API Support
+  description: 'API token authentication. Use format: "Bearer <your-api-token>"'
+  termsOfService: http://swagger.io/terms/
+  title: Bible Notes API
+  version: "1.0"
+paths:
+  /notes/{id}/images:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload and process an image file, then attach it to a note owned
+        by the authenticated user
+      parameters:
+      - description: Note ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Image file (JPEG, PNG, WebP, HEIC, HEIF)
+        in: formData
+        name: image
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully uploaded and processed image
+          schema:
+            properties:
+              imageData:
+                $ref: '#/definitions/shuvoedward_Bible_project_internal_data.ImageData'
+            type: object
+        "400":
+          description: Invalid request (bad note ID, file size exceeded, or invalid
+            file format)
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Note not found or unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Upload image to note
+      tags:
+      - images
+  /notes/{id}/images/{s3_key}:
+    delete:
+      description: Delete an image attachment from a note owned by the authenticated
+        user. Removes both database record and S3 object.
+      parameters:
+      - description: Note ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: S3 Key of the image (URL encoded)
+        in: path
+        name: s3_key
+        required: true
+        type: string
+      responses:
+        "204":
+          description: Successfully deleted image
+        "400":
+          description: Invalid note ID
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Image not found or unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - ApiAuthKey: []
+      summary: Delete image from note
+      tags:
+      - images
+  /v1/autocomplete:
+    get:
+      consumes:
+      - application/json
+      description: Provides intelligent autocomplete suggestions based on the search
+        query type. Returns book name suggestions for partial book names, word matches
+        for single words (3+ character), or verse reference for multi-word queries
+        containing book names and references.
+      parameters:
+      - description: Search query (e.g., 'mat', 'john 3', 'love')
+        in: query
+        name: q
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'Successfully returned autocomplete suggestions. Type indicates
+            the search category: ''book'' for book name matches, ''word'' for word
+            searches, or ''verse'' for verse reference searches'
+          schema:
+            properties:
+              autocomplete:
+                properties:
+                  books:
+                    items:
+                      type: string
+                    type: array
+                  type:
+                    type: string
+                  verses:
+                    items:
+                      $ref: '#/definitions/shuvoedward_Bible_project_internal_data.VerseMatch'
+                    type: array
+                  words:
+                    items:
+                      $ref: '#/definitions/shuvoedward_Bible_project_internal_data.WordMatch'
+                    type: array
+                type: object
+            type: object
+        "400":
+          description: Query parameter is empty or missing
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      summary: Autocomplete Bible search queries
+      tags:
+      - Search
+      - Autocomplete
+  /v1/bible/{book}/{chapter}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves the text for a specified Bible chapter or a range of
+        verses, along with associated user-specific data (highlights and notes) if
+        the user is logged in and activated.
+      parameters:
+      - description: The name of the Bible book (e.g., Genesis)
+        in: path
+        name: book
+        required: true
+        type: string
+      - description: The chapter number (e.g., 1)
+        in: path
+        name: chapter
+        required: true
+        type: integer
+      - description: Start verse number (must be used with evs)
+        in: query
+        name: svs
+        type: integer
+      - description: End verse number (must be used with svs)
+        in: query
+        name: evs
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved passage and user data
+          schema:
+            properties:
+              bible_notes:
+                items:
+                  $ref: '#/definitions/shuvoedward_Bible_project_internal_data.NoteResponse'
+                type: array
+              cross_ref_notes:
+                items:
+                  $ref: '#/definitions/shuvoedward_Bible_project_internal_data.NoteResponse'
+                type: array
+              highlights:
+                items:
+                  $ref: '#/definitions/shuvoedward_Bible_project_internal_data.Highlight'
+                type: array
+              passage:
+                $ref: '#/definitions/shuvoedward_Bible_project_internal_data.Passage'
+            type: object
+        "400":
+          description: Invalid request parameters (e.g., invalid chapter or verse
+            numbers)
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Passage not found (e.g., invalid book/chapter combination)
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get a Bible chapter or verse range
+      tags:
+      - Bible
+      - Passages
+  /v1/grammar/check:
+    post:
+      consumes:
+      - application/json
+      description: Check text for grammar, spelling, and style issues using LanguageTool
+        API
+      parameters:
+      - description: Text to check
+        in: body
+        name: input
+        required: true
+        schema:
+          properties:
+            text:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Grammar check results with suggestions
+          schema:
+            properties:
+              matches:
+                $ref: '#/definitions/cmd_api.GrammarResponse'
+            type: object
+        "400":
+          description: Invalid request body
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal server error or LanguageTool API error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Check grammar and spelling
+      tags:
+      - grammar
+  /v1/highlights:
+    post:
+      consumes:
+      - application/json
+      description: Create a new Bible verse highlight with color and position details
+      parameters:
+      - description: Highlight data (user_id will be set automatically from auth)
+        in: body
+        name: highlight
+        required: true
+        schema:
+          $ref: '#/definitions/shuvoedward_Bible_project_internal_data.Highlight'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully created highlight
+          schema:
+            properties:
+              highlight:
+                $ref: '#/definitions/shuvoedward_Bible_project_internal_data.Highlight'
+            type: object
+        "400":
+          description: Invalid JSON or request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "422":
+          description: Validation errors
+          schema:
+            additionalProperties:
+              additionalProperties:
+                type: string
+              type: object
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Create a new highlight
+      tags:
+      - highlights
+  /v1/highlights/{id}:
+    delete:
+      description: Delete an existing highlight owned by the authenticated user
+      parameters:
+      - description: Highlight ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: Successfully deleted highlight
+        "400":
+          description: Invalid highlight ID
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Highlight not found or unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Delete highlight
+      tags:
+      - highlights
+    patch:
+      consumes:
+      - application/json
+      description: Update the color of an existing highlight owned by the authenticated
+        user
+      parameters:
+      - description: Highlight ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Highlight color update
+        in: body
+        name: input
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated highlight
+          schema:
+            properties:
+              highlights:
+                properties:
+                  color:
+                    type: string
+                  id:
+                    type: integer
+                type: object
+            type: object
+        "400":
+          description: Invalid request (bad ID or JSON)
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Highlight not found or unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "422":
+          description: Validation failed
+          schema:
+            properties:
+              error:
+                additionalProperties:
+                  type: string
+                type: object
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Update highlight color
+      tags:
+      - highlights
+  /v1/notes:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of notes filtered by type (GENERAL or BIBLE)
+        with optional sorting
+      parameters:
+      - description: Note type
+        enum:
+        - GENERAL
+        - BIBLE
+        in: query
+        name: note_type
+        required: true
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        maximum: 10000
+        minimum: 1
+        name: page
+        type: integer
+      - default: 10
+        description: Number of items per page
+        in: query
+        maximum: 100
+        minimum: 1
+        name: page_size
+        type: integer
+      - default: -created_at
+        description: Sort field and direction
+        enum:
+        - created_at
+        - -created_at
+        - title
+        - -title
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved notes (key is note_type)
+          schema:
+            additionalProperties:
+              items:
+                $ref: '#/definitions/shuvoedward_Bible_project_internal_data.NoteMetadata'
+              type: array
+            type: object
+        "400":
+          description: Invalid query parameters or validation errors
+          schema:
+            additionalProperties: true
+            type: object
+        "422":
+          description: Validation failed
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: List user notes
+      tags:
+      - notes
+    post:
+      consumes:
+      - application/json
+      description: Creates a new note of type GENERAL, BIBLE, or CROSS_REFERENCE.
+        GENERAL notes only require title and content. BIBLE and CROSS_REFERENCE notes
+        require additional location fields (book, chapter, verses, and offsets), title
+        optional for BIBLE and no title necessary for CROSS_REFERENCE.
+      parameters:
+      - description: Note creation data
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_api.CreateNoteInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully created note
+          schema:
+            additionalProperties:
+              $ref: '#/definitions/shuvoedward_Bible_project_internal_data.NoteResponse'
+            type: object
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Duplicate title (GENERAL), location already linked (BIBLE/CROSS_REFERENCE),
+            or duplicate content
+          schema:
+            additionalProperties: true
+            type: object
+        "422":
+          description: Validation errors
+          schema:
+            additionalProperties:
+              additionalProperties:
+                type: string
+              type: object
+            type: object
+        "429":
+          description: Rate limit exceeded
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Create a new note
+      tags:
+      - notes
+  /v1/notes/{id}:
+    delete:
+      description: Deletes a note and all associated images. The note must belong
+        to the authenticated user. Images are removed from S3 storage first, then
+        from the database. If S3 deletion fails, the operation aborts to prevent orphaned
+        objects.
+      parameters:
+      - description: Note ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Note successfully deleted
+        "400":
+          description: Invalid note ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Note not found or does not belong to user
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error or S3 deletion failure
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Delete a note
+      tags:
+      - notes
+    get:
+      consumes:
+      - application/json
+      description: Retrieve a specific note with its content and all associated images.
+        Each image includes a presigned URL for temporary S3 access.
+      parameters:
+      - description: Note ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'note: NoteContent object, images: array of ImageData objects
+            with presigned URLs'
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid note ID parameter
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Note not found or doesn't belong to user
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get a single note by ID
+      tags:
+      - notes
+    put:
+      consumes:
+      - application/json
+      description: Updates a note's title and content. The note must belong to the
+        authenticated user and the note_type must match. For BIBLE and CROSS_REFERENCE
+        notes, content is hashed to prevent duplicate annotations.
+      parameters:
+      - description: Note ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: note" "Successfully updated note
+          schema:
+            additionalProperties:
+              $ref: '#/definitions/shuvoedward_Bible_project_internal_data.NoteResponse'
+            type: object
+        "400":
+          description: Invalid request body or note ID
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Note not found, doesn't belong to user, or note_type mismatch
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Duplicate title (GENERAL) or duplicate content (BIBLE/CROSS_REFERENCE)
+          schema:
+            additionalProperties: true
+            type: object
+        "422":
+          description: Validation errors
+          schema:
+            additionalProperties:
+              additionalProperties:
+                type: string
+              type: object
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Update a note
+      tags:
+      - notes
+  /v1/notes/{id}/locations:
+    post:
+      consumes:
+      - application/json
+      description: Creates a location link for an existing note at the specified Bible
+        verse and word offsets
+      parameters:
+      - description: Note ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Location details
+        in: body
+        name: input
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully linked note to location
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid input
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Note not found or doesn't belong to user
+          schema:
+            additionalProperties: true
+            type: object
+        "422":
+          description: Validation failed
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Link note to verse location
+      tags:
+      - notes
+  /v1/notes/{id}/locations/{locationID}:
+    delete:
+      description: Removes a specific location link from a note. Only the note owner
+        can delete links.
+      parameters:
+      - description: Note ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Location ID
+        in: path
+        name: locationID
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Location link successfully deleted
+        "400":
+          description: Invalid input
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Note or location not found, or doesn't belong to user
+          schema:
+            additionalProperties: true
+            type: object
+        "422":
+          description: Validation failed
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Delete note location link
+      tags:
+      - notes
+  /v1/search/bible:
+    get:
+      consumes:
+      - application/json
+      description: Performs a full-text search across Bible verses to find occurrences
+        of the specified word or phrase. Returns paginated results with verse references
+        and surrounding context.
+      parameters:
+      - description: Search word or phrase (e.g., 'love', 'faith')
+        in: query
+        name: q
+        required: true
+        type: string
+      - description: 'Page number (minimum: 1)'
+        in: query
+        minimum: 1
+        name: page
+        required: true
+        type: integer
+      - description: 'Number of results per page (minimum: 1)'
+        in: query
+        minimum: 1
+        name: page_size
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully returned paginated verse search results
+          schema:
+            properties:
+              ' metadata':
+                $ref: '#/definitions/shuvoedward_Bible_project_internal_data.Metadata'
+              verses:
+                items:
+                  $ref: '#/definitions/shuvoedward_Bible_project_internal_data.VerseMatch'
+                type: array
+            type: object
+        "400":
+          description: Invalid query parameters (empty query, empty metadata)
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      summary: Search Bible verses by word
+      tags:
+      - Search
+      - Verses
+  /v1/search/notes:
+    get:
+      consumes:
+      - application/json
+      description: Search through user's notes using PostgreSQL full-text search with
+        pagination
+      parameters:
+      - description: Search query
+        in: query
+        name: q
+        required: true
+        type: string
+      - description: 'Page number (min: 1, max: 10000)'
+        in: query
+        name: page
+        required: true
+        type: integer
+      - description: 'Items per page (min: 1, max: 100)'
+        in: query
+        name: page_size
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Search results with pagination metadata
+          schema:
+            properties:
+              metadata:
+                $ref: '#/definitions/shuvoedward_Bible_project_internal_data.Metadata'
+              notes:
+                items:
+                  $ref: '#/definitions/shuvoedward_Bible_project_internal_data.NoteSearchResponse'
+                type: array
+            type: object
+        "400":
+          description: Invalid request parameters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "422":
+          description: Validation errors
+          schema:
+            additionalProperties:
+              additionalProperties:
+                type: string
+              type: object
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Search notes with full-text search
+      tags:
+      - notes
+  /v1/tokens/authentication:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user with email and password, returns a token valid
+        for 24 hours
+      parameters:
+      - description: Login credentials
+        in: body
+        name: credentials
+        required: true
+        schema:
+          properties:
+            email:
+              type: string
+            password:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully authenticated
+          schema:
+            properties:
+              authentication_token:
+                $ref: '#/definitions/shuvoedward_Bible_project_internal_data.Token'
+            type: object
+        "400":
+          description: Invalid request body
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "401":
+          description: Invalid credentials
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "422":
+          description: Validation failed
+          schema:
+            properties:
+              error:
+                additionalProperties:
+                  type: string
+                type: object
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      summary: User login
+      tags:
+      - authentication
+  /v1/tokens/password-reset:
+    get:
+      consumes:
+      - application/json
+      description: Generate a password reset token and send reset instructions via
+        email. Token valid for 45 minutes.
+      parameters:
+      - description: User email
+        in: body
+        name: email
+        required: true
+        schema:
+          properties:
+            email:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Password reset email will be sent
+          schema:
+            properties:
+              message:
+                type: string
+            type: object
+        "400":
+          description: Invalid request body
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "422":
+          description: Validation failed (email not found or account not activated)
+          schema:
+            properties:
+              error:
+                additionalProperties:
+                  type: string
+                type: object
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      summary: Request password reset
+      tags:
+      - authentication
+  /v1/users:
+    post:
+      consumes:
+      - application/json
+      description: Register a new user account with name, email, and password. Sends
+        activation email.
+      parameters:
+      - description: User registration details
+        in: body
+        name: input
+        required: true
+        schema:
+          properties:
+            email:
+              type: string
+            name:
+              type: string
+            password:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: User created successfully
+          schema:
+            properties:
+              user:
+                $ref: '#/definitions/shuvoedward_Bible_project_internal_data.User'
+            type: object
+        "400":
+          description: Invalid request payload
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "422":
+          description: Validation failed
+          schema:
+            properties:
+              error:
+                additionalProperties:
+                  type: string
+                type: object
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      summary: Register a new user
+      tags:
+      - users
+  /v1/users/activated/{token}:
+    put:
+      consumes:
+      - application/json
+      description: Activate a user account using the activation token from email
+      parameters:
+      - description: Activation token
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User activated successfully
+          schema:
+            properties:
+              user:
+                $ref: '#/definitions/shuvoedward_Bible_project_internal_data.User'
+            type: object
+        "409":
+          description: Edit conflict
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "422":
+          description: Invalid or expired token
+          schema:
+            properties:
+              error:
+                additionalProperties:
+                  type: string
+                type: object
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      summary: Activate user account
+      tags:
+      - users
+  /v1/users/password:
+    put:
+      consumes:
+      - application/json
+      description: Reset user password using a password reset token
+      parameters:
+      - description: New password and reset token
+        in: body
+        name: input
+        required: true
+        schema:
+          properties:
+            password:
+              type: string
+            token:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Password reset successfully
+          schema:
+            properties:
+              message:
+                type: string
+            type: object
+        "400":
+          description: Invalid request payload
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "409":
+          description: Edit conflict
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "422":
+          description: Invalid or expired token
+          schema:
+            properties:
+              error:
+                additionalProperties:
+                  type: string
+                type: object
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      summary: Update user password
+      tags:
+      - users
+security:
+- ApiKeyAuth: []
+swagger: "2.0"
