@@ -50,7 +50,7 @@ func (app *application) serve() error {
 
 	app.logger.Info("starting server", "addr", srv.Addr, "env", app.config.env)
 
-	err := srv.ListenAndServe()
+	err := srv.ListenAndServeTLS("./tls/cert.pem", "./tls/key.pem")
 	if !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
