@@ -1,6 +1,205 @@
 basePath: /v1
 definitions:
-  cmd_api.CreateNoteInput:
+  data.Highlight:
+    properties:
+      book:
+        type: string
+      chapter:
+        type: integer
+      color:
+        type: string
+      created_at:
+        type: string
+      end_offset:
+        type: integer
+      end_verse:
+        type: integer
+      id:
+        type: integer
+      start_offset:
+        type: integer
+      start_verse:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  data.ImageData:
+    properties:
+      created_at:
+        type: string
+      file_size:
+        type: integer
+      height:
+        type: integer
+      id:
+        type: integer
+      image_url:
+        type: string
+      mime_type:
+        type: string
+      note_id:
+        type: integer
+      original_filename:
+        type: string
+      s3_key:
+        type: string
+      width:
+        type: integer
+    type: object
+  data.LocationResponse:
+    properties:
+      book:
+        type: string
+      chapter:
+        type: integer
+      end_offset:
+        type: integer
+      end_verse:
+        type: integer
+      location_id:
+        type: integer
+      start_offset:
+        type: integer
+      start_verse:
+        type: integer
+    type: object
+  data.Metadata:
+    properties:
+      current_page:
+        type: integer
+      first_page:
+        type: integer
+      last_page:
+        type: integer
+      page_size:
+        type: integer
+      total_records:
+        type: integer
+    type: object
+  data.NoteMetadata:
+    properties:
+      Preview:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      note_type:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  data.NoteResponse:
+    properties:
+      content:
+        type: string
+      created_at:
+        type: string
+      location:
+        $ref: '#/definitions/data.LocationResponse'
+      note_id:
+        type: integer
+      note_type:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  data.NoteSearchResponse:
+    properties:
+      content:
+        type: string
+      created_at:
+        type: string
+      location:
+        $ref: '#/definitions/data.LocationResponse'
+      note_id:
+        type: integer
+      note_type:
+        type: string
+      rank:
+        type: number
+      snippet:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  data.Passage:
+    properties:
+      book:
+        type: string
+      chapter:
+        type: integer
+      verses:
+        items:
+          $ref: '#/definitions/data.VerseDetail'
+        type: array
+    type: object
+  data.Token:
+    properties:
+      expiry:
+        type: string
+      token:
+        type: string
+    type: object
+  data.User:
+    properties:
+      activated:
+        type: boolean
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  data.VerseDetail:
+    properties:
+      number:
+        type: integer
+      text:
+        type: string
+      verse_id:
+        type: integer
+    type: object
+  data.VerseMatch:
+    properties:
+      book:
+        type: string
+      chapter:
+        type: integer
+      exactMatch:
+        type: string
+      id:
+        format: int64
+        type: integer
+      rank:
+        format: float64
+        type: number
+      snippet:
+        type: string
+      text:
+        type: string
+      verse:
+        type: integer
+    type: object
+  data.WordMatch:
+    properties:
+      frequency:
+        type: integer
+      lexeme:
+        type: string
+      word:
+        type: string
+    type: object
+  main.CreateNoteInput:
     properties:
       book:
         description: Bible verse location fields (only used for BIBLE and CROSS_REFERENCE
@@ -28,7 +227,7 @@ definitions:
       title:
         type: string
     type: object
-  cmd_api.GrammarMatch:
+  main.GrammarMatch:
     properties:
       length:
         type: integer
@@ -43,211 +242,12 @@ definitions:
           type: object
         type: array
     type: object
-  cmd_api.GrammarResponse:
+  main.GrammarResponse:
     properties:
       matches:
         items:
-          $ref: '#/definitions/cmd_api.GrammarMatch'
+          $ref: '#/definitions/main.GrammarMatch'
         type: array
-    type: object
-  shuvoedward_Bible_project_internal_data.Highlight:
-    properties:
-      book:
-        type: string
-      chapter:
-        type: integer
-      color:
-        type: string
-      created_at:
-        type: string
-      end_offset:
-        type: integer
-      end_verse:
-        type: integer
-      id:
-        type: integer
-      start_offset:
-        type: integer
-      start_verse:
-        type: integer
-      updated_at:
-        type: string
-    type: object
-  shuvoedward_Bible_project_internal_data.ImageData:
-    properties:
-      created_at:
-        type: string
-      file_size:
-        type: integer
-      height:
-        type: integer
-      id:
-        type: integer
-      image_url:
-        type: string
-      mime_type:
-        type: string
-      note_id:
-        type: integer
-      original_filename:
-        type: string
-      s3_key:
-        type: string
-      width:
-        type: integer
-    type: object
-  shuvoedward_Bible_project_internal_data.LocationResponse:
-    properties:
-      book:
-        type: string
-      chapter:
-        type: integer
-      end_offset:
-        type: integer
-      end_verse:
-        type: integer
-      location_id:
-        type: integer
-      start_offset:
-        type: integer
-      start_verse:
-        type: integer
-    type: object
-  shuvoedward_Bible_project_internal_data.Metadata:
-    properties:
-      current_page:
-        type: integer
-      first_page:
-        type: integer
-      last_page:
-        type: integer
-      page_size:
-        type: integer
-      total_records:
-        type: integer
-    type: object
-  shuvoedward_Bible_project_internal_data.NoteMetadata:
-    properties:
-      Preview:
-        type: string
-      created_at:
-        type: string
-      id:
-        type: integer
-      note_type:
-        type: string
-      title:
-        type: string
-      updated_at:
-        type: string
-    type: object
-  shuvoedward_Bible_project_internal_data.NoteResponse:
-    properties:
-      content:
-        type: string
-      created_at:
-        type: string
-      location:
-        $ref: '#/definitions/shuvoedward_Bible_project_internal_data.LocationResponse'
-      note_id:
-        type: integer
-      note_type:
-        type: string
-      title:
-        type: string
-      updated_at:
-        type: string
-    type: object
-  shuvoedward_Bible_project_internal_data.NoteSearchResponse:
-    properties:
-      content:
-        type: string
-      created_at:
-        type: string
-      location:
-        $ref: '#/definitions/shuvoedward_Bible_project_internal_data.LocationResponse'
-      note_id:
-        type: integer
-      note_type:
-        type: string
-      rank:
-        type: number
-      snippet:
-        type: string
-      title:
-        type: string
-      updated_at:
-        type: string
-    type: object
-  shuvoedward_Bible_project_internal_data.Passage:
-    properties:
-      book:
-        type: string
-      chapter:
-        type: integer
-      verses:
-        items:
-          $ref: '#/definitions/shuvoedward_Bible_project_internal_data.VerseDetail'
-        type: array
-    type: object
-  shuvoedward_Bible_project_internal_data.Token:
-    properties:
-      expiry:
-        type: string
-      token:
-        type: string
-    type: object
-  shuvoedward_Bible_project_internal_data.User:
-    properties:
-      activated:
-        type: boolean
-      created_at:
-        type: string
-      email:
-        type: string
-      id:
-        type: integer
-      name:
-        type: string
-    type: object
-  shuvoedward_Bible_project_internal_data.VerseDetail:
-    properties:
-      number:
-        type: integer
-      text:
-        type: string
-      verse_id:
-        type: integer
-    type: object
-  shuvoedward_Bible_project_internal_data.VerseMatch:
-    properties:
-      book:
-        type: string
-      chapter:
-        type: integer
-      exactMatch:
-        type: string
-      id:
-        format: int64
-        type: integer
-      rank:
-        format: float64
-        type: number
-      snippet:
-        type: string
-      text:
-        type: string
-      verse:
-        type: integer
-    type: object
-  shuvoedward_Bible_project_internal_data.WordMatch:
-    properties:
-      frequency:
-        type: integer
-      lexeme:
-        type: string
-      word:
-        type: string
     type: object
 host: localhost:4000
 info:
@@ -284,7 +284,7 @@ paths:
           schema:
             properties:
               imageData:
-                $ref: '#/definitions/shuvoedward_Bible_project_internal_data.ImageData'
+                $ref: '#/definitions/data.ImageData'
             type: object
         "400":
           description: Invalid request (bad note ID, file size exceeded, or invalid
@@ -390,11 +390,11 @@ paths:
                     type: string
                   verses:
                     items:
-                      $ref: '#/definitions/shuvoedward_Bible_project_internal_data.VerseMatch'
+                      $ref: '#/definitions/data.VerseMatch'
                     type: array
                   words:
                     items:
-                      $ref: '#/definitions/shuvoedward_Bible_project_internal_data.WordMatch'
+                      $ref: '#/definitions/data.WordMatch'
                     type: array
                 type: object
             type: object
@@ -451,18 +451,18 @@ paths:
             properties:
               bible_notes:
                 items:
-                  $ref: '#/definitions/shuvoedward_Bible_project_internal_data.NoteResponse'
+                  $ref: '#/definitions/data.NoteResponse'
                 type: array
               cross_ref_notes:
                 items:
-                  $ref: '#/definitions/shuvoedward_Bible_project_internal_data.NoteResponse'
+                  $ref: '#/definitions/data.NoteResponse'
                 type: array
               highlights:
                 items:
-                  $ref: '#/definitions/shuvoedward_Bible_project_internal_data.Highlight'
+                  $ref: '#/definitions/data.Highlight'
                 type: array
               passage:
-                $ref: '#/definitions/shuvoedward_Bible_project_internal_data.Passage'
+                $ref: '#/definitions/data.Passage'
             type: object
         "400":
           description: Invalid request parameters (e.g., invalid chapter or verse
@@ -516,7 +516,7 @@ paths:
           schema:
             properties:
               matches:
-                $ref: '#/definitions/cmd_api.GrammarResponse'
+                $ref: '#/definitions/main.GrammarResponse'
             type: object
         "400":
           description: Invalid request body
@@ -548,7 +548,7 @@ paths:
         name: highlight
         required: true
         schema:
-          $ref: '#/definitions/shuvoedward_Bible_project_internal_data.Highlight'
+          $ref: '#/definitions/data.Highlight'
       produces:
       - application/json
       responses:
@@ -557,7 +557,7 @@ paths:
           schema:
             properties:
               highlight:
-                $ref: '#/definitions/shuvoedward_Bible_project_internal_data.Highlight'
+                $ref: '#/definitions/data.Highlight'
             type: object
         "400":
           description: Invalid JSON or request body
@@ -736,7 +736,7 @@ paths:
           schema:
             additionalProperties:
               items:
-                $ref: '#/definitions/shuvoedward_Bible_project_internal_data.NoteMetadata'
+                $ref: '#/definitions/data.NoteMetadata'
               type: array
             type: object
         "400":
@@ -772,7 +772,7 @@ paths:
         name: input
         required: true
         schema:
-          $ref: '#/definitions/cmd_api.CreateNoteInput'
+          $ref: '#/definitions/main.CreateNoteInput'
       produces:
       - application/json
       responses:
@@ -780,7 +780,7 @@ paths:
           description: Successfully created note
           schema:
             additionalProperties:
-              $ref: '#/definitions/shuvoedward_Bible_project_internal_data.NoteResponse'
+              $ref: '#/definitions/data.NoteResponse'
             type: object
         "400":
           description: Invalid request body
@@ -917,7 +917,7 @@ paths:
           description: note" "Successfully updated note
           schema:
             additionalProperties:
-              $ref: '#/definitions/shuvoedward_Bible_project_internal_data.NoteResponse'
+              $ref: '#/definitions/data.NoteResponse'
             type: object
         "400":
           description: Invalid request body or note ID
@@ -1083,10 +1083,10 @@ paths:
           schema:
             properties:
               ' metadata':
-                $ref: '#/definitions/shuvoedward_Bible_project_internal_data.Metadata'
+                $ref: '#/definitions/data.Metadata'
               verses:
                 items:
-                  $ref: '#/definitions/shuvoedward_Bible_project_internal_data.VerseMatch'
+                  $ref: '#/definitions/data.VerseMatch'
                 type: array
             type: object
         "400":
@@ -1137,10 +1137,10 @@ paths:
           schema:
             properties:
               metadata:
-                $ref: '#/definitions/shuvoedward_Bible_project_internal_data.Metadata'
+                $ref: '#/definitions/data.Metadata'
               notes:
                 items:
-                  $ref: '#/definitions/shuvoedward_Bible_project_internal_data.NoteSearchResponse'
+                  $ref: '#/definitions/data.NoteSearchResponse'
                 type: array
             type: object
         "400":
@@ -1194,7 +1194,7 @@ paths:
           schema:
             properties:
               authentication_token:
-                $ref: '#/definitions/shuvoedward_Bible_project_internal_data.Token'
+                $ref: '#/definitions/data.Token'
             type: object
         "400":
           description: Invalid request body
@@ -1309,7 +1309,7 @@ paths:
           schema:
             properties:
               user:
-                $ref: '#/definitions/shuvoedward_Bible_project_internal_data.User'
+                $ref: '#/definitions/data.User'
             type: object
         "400":
           description: Invalid request payload
@@ -1356,7 +1356,7 @@ paths:
           schema:
             properties:
               user:
-                $ref: '#/definitions/shuvoedward_Bible_project_internal_data.User'
+                $ref: '#/definitions/data.User'
             type: object
         "409":
           description: Edit conflict
