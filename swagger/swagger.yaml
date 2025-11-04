@@ -1168,6 +1168,58 @@ paths:
       summary: Search notes with full-text search
       tags:
       - notes
+  /v1/tokens/activation:
+    get:
+      consumes:
+      - application/json
+      description: Generate a token to activate user's account and send activation
+        instructions via email. Token valid for 3 days.
+      parameters:
+      - description: User email
+        in: body
+        name: email
+        required: true
+        schema:
+          properties:
+            email:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Activation token will be sent
+          schema:
+            properties:
+              message:
+                type: string
+            type: object
+        "400":
+          description: Invalid request body
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "422":
+          description: Validation failed (email not found or account already activated)
+          schema:
+            properties:
+              error:
+                additionalProperties:
+                  type: string
+                type: object
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      summary: Request account activation
+      tags:
+      - authentication
   /v1/tokens/authentication:
     post:
       consumes:
