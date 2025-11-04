@@ -53,19 +53,10 @@ This project pushed me into real-world backend development:
 
 
 ## Documentation
+- [Design](DESIGN.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [API](docs/API.md) or [Swagger UI](http://localhost:4000/swagger) for full documentation.
 
-
-
-## API Overview
-
-- All endpoints are rooted at `/v1/`.
-- Authentication is via API tokens using the `Authorization: Bearer <token>` header.
-- Example endpoints:
-  - `GET /v1/bible/:book/:chapter` – Retrieve a Bible chapter or specified range.
-  - `GET /v1/autocomplete/bible` – Autocomplete feature for Bible books and passages.
-  - `POST /v1/notes` – Create a new note attached to a verse or generally.
-  - `POST /v1/users` – Register a new user.
-  - `POST /v1/tokens/authentication` – Authenticate and obtain a token.
 
 ## Getting Started
 
