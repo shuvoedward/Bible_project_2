@@ -4,6 +4,39 @@
 
 Bible Notes API is a RESTful API designed to support Bible study, personal annotations, verse highlighting, and note management. It provides programmatic access to Bible text, passage lookup, highlights, and user notes, making it suitable for integration with web and mobile Bible study applications.
 
+
+## Why This Project?
+
+Most Bible study apps overwhelm users with pre-packaged resources—commentaries, 
+reading plans, devotionals—that don't fit everyone's study style. **I wanted 
+to build something different**: a focused note-taking platform where users 
+create and organize their own study materials.
+
+### The Problem
+- Existing apps: Feature-rich but cluttered, one-size-fits-all resources
+- Students and scholars: Need flexible, personalized study tools
+- No easy way to combine highlights, notes, cross-references in one place
+
+### My Solution
+A minimalist Bible study API that prioritizes **user-generated content**:
+- Personal notes tied to specific verses
+- Custom highlights with color coding
+- Cross-reference linking between passages
+- Future: Collaborative study with friends, custom tags, prayer tracking
+
+This is the app I wish I had for my own Bible study—clean, focused, and 
+built around how **I** want to study, not how someone else thinks I should
+
+## What I Learned
+
+This project pushed me into real-world backend development:
+
+- **PostgreSQL**: Schema design, full-text search optimization, GIN indexes
+- **Redis**: Caching strategies, token storage, TTL management
+- **API Design**: RESTful principles, authentication flows, versioning
+- **Production Skills**: Rate limiting, email integration (SMTP), cloud storage (S3)
+
+
 ## Features
 
 - Retrieve the text of any Bible chapter, specific verse ranges, or search for verses.
@@ -17,6 +50,11 @@ Bible Notes API is a RESTful API designed to support Bible study, personal annot
 - Built-in health check and metrics endpoints.
 - Integration with Redis for caching and with external services such as SMTP for email and AWS S3 for image storage.
 - OpenAPI documentation (Swagger) is available at `/swagger`.
+
+
+## Documentation
+
+
 
 ## API Overview
 
@@ -92,6 +130,11 @@ Important configuration flags and environment variables:
 - Rate limits: `-auth-rate-limit`, `-ip-rate-limit`, `-note-rate-limit`
 
 See the main function and Makefile for all available configuration options.
+
+## Known Limitations
+- Single Bible translation support (plan to add more)
+- Images limited to 10MB size
+- Rate limits may need adjustment based on usage patterns
 
 ## License
 
