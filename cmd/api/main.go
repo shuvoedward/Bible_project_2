@@ -27,10 +27,11 @@ import (
 	"shuvoedward/Bible_project/internal/mailer"
 	"shuvoedward/Bible_project/internal/ratelimit"
 	"shuvoedward/Bible_project/internal/s3_service"
+	"strconv"
 	"sync"
 	"time"
 
-	_ "shuvoedward/Bible_project/docs"
+	_ "shuvoedward/Bible_project/swagger"
 
 	_ "github.com/lib/pq"
 )
@@ -96,26 +97,26 @@ func main() {
 
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
 
-	flag.StringVar(&cfg.LanguageToolURL, "languageToolURL", "", "LanguageTool URL")
+	flag.StringVar(&cfg.LanguageToolURL, "languageToolURL", os.Getenv("LANGUAGETOOL_URL"), "LanguageTool URL")
 
-	flag.StringVar(&cfg.db.dsn, "db-dsn", "", "PostgreSQL DSN")
+	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("BIBLE_DB_DSN"), "PostgreSQL DSN")
 	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "PostgreSQL max open connection")
 	flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", 25, "PostgreSQL max idle connection")
 	flag.DurationVar(&cfg.db.maxIdleTime, "db-max-idle-time", 15*time.Minute, "PostgreSQL max connection idle time")
 
-	flag.StringVar(&cfg.smtp.host, "smtp-host", "sandbox.smtp.mailtrap.io", "SMTP host")
-	flag.IntVar(&cfg.smtp.port, "smtp-port", 25, "SMTP port")
-	flag.StringVar(&cfg.smtp.username, "smtp-username", "c1692736a88ff8", "SMTP username")
-	flag.StringVar(&cfg.smtp.password, "smtp-password", "8f8adcaf82b8a4", "SMTP password")
-	flag.StringVar(&cfg.smtp.sender, "smtp-sender", "<no-reply@bible.edward.net>", "SMTP sender")
+	flag.StringVar(&cfg.smtp.host, "smtp-host", getEnv("SMTP_HOST", "sandbox.smtp.mailtrap.io"), "SMTP host")
+	flag.IntVar(&cfg.smtp.port, "smtp-port", getEnvAsInt("SMTP_PORT", 25), "SMTP port")
+	flag.StringVar(&cfg.smtp.username, "smtp-username", os.Getenv("SMTP_USERNAME"), "SMTP username")
+	flag.StringVar(&cfg.smtp.password, "smtp-password", os.Getenv("SMTP_PASSWORD"), "SMTP password")
+	flag.StringVar(&cfg.smtp.sender, "smtp-sender", os.Getenv("SMTP_SENDER"), "SMTP sender")
 
 	flag.IntVar(&cfg.limiter.ipRateLimit, "ip-rate-limit", 200, "IP rate limit minutes")
 	flag.IntVar(&cfg.limiter.noteRateLimit, "note-rate-limit", 30, "Note rate limit in minutes")
 	flag.IntVar(&cfg.limiter.authRatelimit, "auth-rate-limit", 15, "Auth rate limit in minutes")
 
-	flag.StringVar(&cfg.redisConfig.Host, "redis-host", "localhost", "Redis Host")
-	flag.StringVar(&cfg.redisConfig.Port, "redis-port", "6379", "Redis Port")
-	flag.StringVar(&cfg.redisConfig.Password, "redis-password", "", "Redis Password")
+	flag.StringVar(&cfg.redisConfig.Host, "redis-host", getEnv("REDIS_HOST", "localhost"), "Redis Host")
+	flag.StringVar(&cfg.redisConfig.Port, "redis-port", getEnv("REDIS_PORT", "6379"), "Redis Port")
+	flag.StringVar(&cfg.redisConfig.Password, "redis-password", getEnv("REDIS_PASSWORD", ""), "Redis Password")
 	flag.IntVar(&cfg.redisConfig.DB, "redis-db", 0, "Redis DB")
 	flag.IntVar(&cfg.redisConfig.PoolSize, "redis-poolsize", 10, "Redis Pool Size")
 
@@ -247,4 +248,21 @@ func (app *application) runBackgroundTasks() {
 			return
 		}
 	}
+}
+
+func getEnv(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+
+	return fallback
+}
+
+func getEnvAsInt(key string, fallback int) int {
+	if value := os.Getenv(key); value != "" {
+		if intVal, err := strconv.Atoi(value); err == nil {
+			return intVal
+		}
+	}
+	return fallback
 }

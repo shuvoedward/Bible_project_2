@@ -122,10 +122,20 @@ Important configuration flags and environment variables:
 
 See the main function and Makefile for all available configuration options.
 
+
 ## Known Limitations
+
 - Single Bible translation support (plan to add more)
 - Images limited to 10MB size
 - Rate limits may need adjustment based on usage patterns
+
+
+## Email Configuration
+
+Currently configured with Mailtrap for demonstration purposes. 
+To use real email delivery, update SMTP environment variables 
+to your preferred provider (SendGrid, AWS SES, Mailgun, etc).
+
 
 ## License
 

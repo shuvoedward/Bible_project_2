@@ -25,7 +25,7 @@ confirm:
 ## run/api: run cmd/api application
 .PHONY: run/api
 run/api:
-	go run ./cmd/api -db-dsn=${BIBLE_DB_DSN} -languageToolURL=${LANGUAGETOOL_URL}
+	go run ./cmd/api 
 
 ## db/psql: connect to the database using psql
 .PHONY: db/psql
