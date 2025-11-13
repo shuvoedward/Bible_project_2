@@ -51,6 +51,11 @@ This project pushed me into real-world backend development:
 - Integration with Redis for caching and with external services such as SMTP for email and AWS S3 for image storage.
 - OpenAPI documentation (Swagger) is available at `/swagger`.
 
+## Performance Highlights
+- **4.5x faster** authentication with Redis caching
+- Token validation: 110μs → 25μs
+- Full-text search with PostgreSQL tsvector
+- Rate limiting with Redis atomic operations
 
 ## Documentation
 - [Design](DESIGN.md)

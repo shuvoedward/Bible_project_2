@@ -21,6 +21,7 @@
 
 ## Component Details
 
+
 ### API Server (Go)
 The API server is built with Go for high performance and simple concurrency handling.
 
@@ -69,10 +70,9 @@ The API server is built with Go for high performance and simple concurrency hand
 
 **Cache Patterns**:
 
-| Data Type | Key Pattern | TTL | Invalidation |
-|-----------|-------------|-----|--------------|
-| User Sessions | `user:token:{token}` | 24 hours | On logout |
-| User Profiles | `user:profile:{user_id}` | 1 hour | On profile update |
+| Data Type     | Key Pattern          | TTL | Invalidation |
+|---------------|----------------------|-----|--------------|
+| User Sessions | `token:{token}-id:{userID}activated:{activated}` | 24 hours | On logout |
 
 
 **Cache Invalidation Strategies**:
@@ -89,6 +89,14 @@ The API server is built with Go for high performance and simple concurrency hand
 5. Store result in Redis
 6. Return data to client
 ```
+
+### Why Not Cache Bible Verses?
+Benchmarks showed PostgreSQL outperforms Redis for static data:
+- Bible text is read-only (perfect for PG shared_buffers)
+- Local DB faster than Redis for cached data (145μs vs 230μs)
+- No serialization overhead
+
+See [PERFORMANCE.md](./PERFORMANCE.md) for detailed benchmarks.
 
 ### Storage Layer (S3)
 
@@ -161,6 +169,39 @@ The API server is built with Go for high performance and simple concurrency hand
 - version: varchar(50) (e.g., "KJV", "NIV")
 - UNIQUE (book, chapter, verse, version)
 ```
+
+## Authenication System
+
+### Design Decision: Redis Cache Layer
+
+**Problem**: Every API request required database lookup + hash comparison (~110μs)
+
+**Solution**: Two-tier authentication system
+- **Persistent layer**: PostgreSQL (hashed tokens, source of truth)
+- **Cache layer**: Redis (15-min TTL, fast validation)
+
+**Why not alternatives?**
+
+| Approach | Decision | Reason |
+|----------|----------|--------|
+| JWT | ❌ Rejected | Cannot invalidate on logout, can't check real-time user status |
+| In-memory map | ❌ Rejected | Lost on restart, no horizontal scaling, complex concurrency |
+| Redis cache | ✅ Selected | Fast, persistent, scales, automatic expiration |
+
+### Flow
+```
+1. Login → Hash & store in DB → Cache in Redis (15min TTL)
+2. API Request → Check Redis → Hit: return user (25μs)
+                              → Miss: verify DB + cache result
+3. Logout → Delete from both Redis and DB
+```
+
+**Trade-offs**:
+- ✅ 4.5x faster than DB-only
+- ✅ Security maintained (DB is source of truth)
+- ✅ Scales horizontally
+- ⚠️ 15min window if user deactivated (acceptable for our use case)
+
 
 ## Authentication Flow
 ![Authentication flow](./Bible%20app%20Authentication.png)
