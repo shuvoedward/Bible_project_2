@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"shuvoedward/Bible_project/internal/data"
 	"shuvoedward/Bible_project/internal/validator"
@@ -38,30 +37,15 @@ func (app *application) getChapterOrVerses(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Build cache key based on the requested passage location
-	key := buildCacheKey(filter.Book, filter.Chapter, filter.StartVerse, filter.EndVerse)
-
-	// Try to retreieve passage from Redis cache
-	passage, err := app.redis.GetCachedVerses(key)
+	passage, err := app.models.Passages.Get(filter)
 	if err != nil {
-		// Log Redis errors but don't fail the request - server from DB
-		app.logger.Error("redis caching error", "error", err)
-	}
-
-	// Cache miss - retrieve from database and cache the result
-	if passage == nil {
-		passage, err = app.models.Passages.Get(filter)
-		if err != nil {
-			switch {
-			case errors.Is(err, data.ErrRecordNotFound):
-				app.notFoundResponse(w, r)
-			default:
-				app.serverErrorResponse(w, r, err)
-			}
-			return
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
 		}
-
-		app.redis.CacheVerses(key, passage)
+		return
 	}
 
 	// Retrieve user-specific data (highlights and notes) if user is authenticated
@@ -91,16 +75,6 @@ func (app *application) getChapterOrVerses(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
-}
-
-// buildCacheKey generates a consistent Redis cache key for Bible passages.
-// Format: "book:chapter:startVerse-endVerse"
-// Examples:
-//   - "john:3:16-18" for verse range (John 3:16-18)
-//   - "john:3:0-0" for whole chapter (John 3)
-//   - "john:3:1-1" for single verse (John 3:1)
-func buildCacheKey(book string, chapter, startVerse, endVerse int) string {
-	return fmt.Sprintf("%s:%d:%d-%d", book, chapter, startVerse, endVerse)
 }
 
 // @Summary Autocomplete Bible search queries
