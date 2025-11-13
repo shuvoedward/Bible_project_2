@@ -2,8 +2,9 @@ package cache
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
 	"fmt"
+	"shuvoedward/Bible_project/internal/data"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -92,10 +93,10 @@ func (r *RedisClient) GetForToken(token string) (string, error) {
 	defer cancel()
 
 	userData, err := r.client.Get(ctx, key).Result()
+	if err == redis.Nil {
+		return "", nil
+	}
 	if err != nil {
-		if errors.Is(err, redis.Nil) {
-			return "", nil
-		}
 		return "", err
 	}
 
@@ -114,4 +115,61 @@ func (r *RedisClient) DeleteToken(token string) error {
 	}
 
 	return nil
+}
+
+// CacheVerses stores a Bible passage in Redis with a 24-hour TTL.
+// This is a fire-and-forget operation - errors are returned but the caller
+// typically logs them without failing the request.
+func (r *RedisClient) CacheVerses(key string, passage *data.Passage) error {
+	data, err := json.Marshal(passage)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err = r.client.Set(ctx, "key", data, 24*time.Hour).Err()
+	if err != nil {
+		return fmt.Errorf("failed to cache verses: %w", err)
+	}
+
+	return nil
+}
+
+// GetCachedVerses retrieves a Bible passage from Redis cache.
+// Returns:
+//   - (*data.Passage, nil) on cache hit
+//   - (nil, nil) on cache miss (key doesn't exist)
+//   - (nil, error) on Redis connection/operational errors
+func (r *RedisClient) GetCachedVerses(key string) (*data.Passage, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	versesStr, err := r.client.Get(ctx, key).Result()
+	// if err != nil {
+	// 	if errors.Is(err, redis.Nil) {
+	// 	}
+	// 	return nil, nil // Cache miss
+	// }
+	// return nil, err // Real error
+
+	// Cache miss - key doesn't exist in Redis (expected, not an error)
+	if err == redis.Nil {
+		return nil, nil
+	}
+
+	// Real Redis error (connection issues, timeout, etc.)
+	if err != nil {
+		return nil, err
+	}
+
+	passage := data.Passage{
+		Verses: []data.VerseDetail{},
+	}
+
+	// Cache hit - deserialize the JSON data
+	err = json.Unmarshal([]byte(versesStr), &passage)
+
+	return &passage, err
 }
