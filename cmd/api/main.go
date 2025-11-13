@@ -19,7 +19,9 @@ import (
 	"database/sql"
 	"expvar"
 	"flag"
+	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"runtime"
 	"shuvoedward/Bible_project/internal/cache"
@@ -95,11 +97,24 @@ func main() {
 
 	flag.IntVar(&cfg.port, "port", 4000, "API server port")
 
-	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
+	flag.StringVar(&cfg.env, "env", "production", "Environment (development|staging|production)")
 
 	flag.StringVar(&cfg.LanguageToolURL, "languageToolURL", os.Getenv("LANGUAGETOOL_URL"), "LanguageTool URL")
 
-	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("BIBLE_DB_DSN"), "PostgreSQL DSN")
+	if cfg.env == "production" {
+		password := os.Getenv("DB_PASSWORD")
+		port := getEnvAsInt("DB_PORT", 5432)
+		cfg.db.dsn = fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
+			os.Getenv("DB_USER"),
+			url.QueryEscape(password),
+			os.Getenv("DB_HOST"), // ← Changed from DB_PASSWORD
+			port,
+			os.Getenv("DB_NAME"),
+			os.Getenv("DB_SSLMODE"),
+		)
+	} else {
+		flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("BIBLE_DB_DSN"), "PostgreSQL DSN")
+	}
 	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "PostgreSQL max open connection")
 	flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", 25, "PostgreSQL max idle connection")
 	flag.DurationVar(&cfg.db.maxIdleTime, "db-max-idle-time", 15*time.Minute, "PostgreSQL max connection idle time")
@@ -120,7 +135,7 @@ func main() {
 	flag.IntVar(&cfg.redisConfig.DB, "redis-db", 0, "Redis DB")
 	flag.IntVar(&cfg.redisConfig.PoolSize, "redis-poolsize", 10, "Redis Pool Size")
 
-	flag.StringVar(&cfg.corsTrustedOrigin, "cors-trusted-origin", "https://localhost:9000", "Cross Origin Trusted")
+	flag.StringVar(&cfg.corsTrustedOrigin, "cors-trusted-origin", "http://localhost:9000", "Cross Origin Trusted")
 
 	flag.Parse()
 
@@ -137,7 +152,7 @@ func main() {
 	}
 	logger.Info("Successful connection to database")
 
-	redisClient, err := cache.NewRedisClient(cfg.redisConfig, 24*time.Hour)
+	redisClient, err := cache.NewRedisClient(cfg.redisConfig, 15*time.Minute)
 	if err != nil {
 		logger.Error(err.Error())
 		os.Exit(1)

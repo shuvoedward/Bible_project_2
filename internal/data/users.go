@@ -15,7 +15,7 @@ var ErrDuplicateEmail = errors.New("duplicate email")
 type UserModel interface {
 	Insert(user *User) error
 	GetByEmail(email string) (*User, error)
-	GetForToken(tokenScope, tokenPlainText string) (*User, error)
+	GetForToken(tokenPlainText, tokenScope string) (*User, error)
 	Update(user *User) error
 }
 
