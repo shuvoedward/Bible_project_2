@@ -440,15 +440,6 @@ func (m noteModel) InsertLocated(content *NoteContent, location *NoteLocation) (
 	//   - Must hash content to prevent duplicate annotations on same verse
 	//   - Content must be unique (prevent spam/abuse)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
-	defer cancel()
-
-	tx, err := m.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
 	contentHash := hashContent(content.Content)
 
 	// no need to return content-hash. it is only needed for backend?
@@ -499,7 +490,10 @@ func (m noteModel) InsertLocated(content *NoteContent, location *NoteLocation) (
 	insertArgs := []any{content.UserID, content.Title, content.Content, contentHash, content.NoteType,
 		location.Book, location.Chapter, location.StartVerse, location.EndVerse, location.StartOffset, location.EndOffset}
 
-	err = tx.QueryRowContext(ctx, insertQuery, insertArgs...).Scan(
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+
+	err := m.DB.QueryRowContext(ctx, insertQuery, insertArgs...).Scan(
 		&responseNote.ID, &responseNote.Title, &responseNote.Content, &responseNote.NoteType,
 		&responseNote.CreatedAt, &responseNote.UpdatedAt, &responseNote.Location.Book,
 		&responseNote.Location.Chapter, &responseNote.Location.StartVerse, &responseNote.Location.EndVerse,
@@ -511,11 +505,6 @@ func (m noteModel) InsertLocated(content *NoteContent, location *NoteLocation) (
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return nil, ErrDuplicateContent
 		}
-		return nil, err
-	}
-
-	err = tx.Commit()
-	if err != nil {
 		return nil, err
 	}
 
