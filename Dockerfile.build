@@ -1,0 +1,20 @@
+FROM --platform=linux/amd64 golang:1.25-bookworm
+
+# Install libvips and build dependencies
+RUN apt-get update && apt-get install -y \
+    libvips-dev \
+    gcc \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy go mod files first (for caching)
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy the rest of the code
+COPY . .
+
+# Build the binary
+RUN CGO_ENABLED=1  go build -ldflags="-s -w" -o bible-app ./cmd/api
