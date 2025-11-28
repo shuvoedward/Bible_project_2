@@ -1,6 +1,7 @@
 package data
 
 import (
+	"shuvoedward/Bible_project/internal/validator"
 	"slices"
 	"strings"
 )
@@ -33,6 +34,25 @@ func (f Filters) sortDirection() string {
 		return "DESC"
 	}
 	return "ASC"
+}
+
+// Validate performs generic pagination validation
+// Returns validator with errors if invalid
+func (f *Filters) Validate(v *validator.Validator) {
+	// Generic pagination rules (same for all endpoint)
+	v.Check(f.Page > 0, "page", "must be atleast 1")
+	v.Check(f.Page <= 10000, "page", "must be at most 10000")
+	v.Check(f.PageSize > 0, "page_size", "must be at least 1")
+	v.Check(f.PageSize <= 100, "page_size", "must be at most 100")
+}
+
+// ValidateSort checks if sort parameter is in safelist
+func (f *Filters) ValidateSort(v *validator.Validator) {
+	if len(f.SortSafeList) > 0 {
+		if !slices.Contains(f.SortSafeList, f.Sort) {
+			v.AddError("sort", "invalid sort value")
+		}
+	}
 }
 
 type Metadata struct {

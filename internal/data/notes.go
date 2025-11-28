@@ -88,6 +88,7 @@ type LocationResponse struct {
 	EndOffset   int    `json:"end_offset"`
 }
 
+// Use NoteContent in field?
 type NoteResponse struct {
 	ID        int64     `json:"note_id"`
 	UserID    int64     `json:"-"`

@@ -8,11 +8,13 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
-func (app *application) routes() http.Handler {
+func (app *application) routes(handlers *Handlers) http.Handler {
 	router := httprouter.New()
 
 	router.RedirectFixedPath = false
 	router.RedirectTrailingSlash = false
+
+	handlers.Note.RegisterRoutes(router)
 
 	router.Handler(http.MethodGet, "/swagger/*any", httpSwagger.WrapHandler)
 
@@ -22,7 +24,6 @@ func (app *application) routes() http.Handler {
 
 	router.HandlerFunc(http.MethodGet, "/v1/autocomplete/bible", app.generalRateLimit(app.autoCompleteHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/search/bible", app.generalRateLimit(app.searchHandler))
-	router.HandlerFunc(http.MethodGet, "/v1/search/notes", app.generalRateLimit(app.requireActivatedUser(app.searchNoteHandler)))
 
 	router.HandlerFunc(http.MethodPost, "/v1/users", app.authRateLimit(app.registerUserHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/users/activated/:token", app.authRateLimit(app.activateUserHandler))
@@ -37,16 +38,6 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodDelete, "/v1/highlights/:id", app.requireActivatedUser(app.generalRateLimit(app.deleteHighlightHandler)))
 
 	router.HandlerFunc(http.MethodPost, "/v1/grammar/check", app.requireActivatedUser(app.grammarCheckHandler))
-
-	router.HandlerFunc(http.MethodGet, "/v1/notes", app.requireActivatedUser(app.generalRateLimit(app.listNotesMetadataHandler)))
-	router.HandlerFunc(http.MethodGet, "/v1/notes/:id", app.requireActivatedUser(app.generalRateLimit(app.getNoteHandler)))
-	router.HandlerFunc(http.MethodPost, "/v1/notes", app.requireActivatedUser(app.createNoteHandler))
-	router.HandlerFunc(http.MethodDelete, "/v1/notes/:id", app.requireActivatedUser(app.generalRateLimit(app.deleteNoteHandler)))
-	router.HandlerFunc(http.MethodPut, "/v1/notes/:id", app.requireActivatedUser(app.generalRateLimit(app.updateNoteHandler)))
-
-	// link
-	router.HandlerFunc(http.MethodPost, "/v1/notes/:id/locations", app.requireActivatedUser(app.generalRateLimit(app.linkNoteHandler)))
-	router.HandlerFunc(http.MethodDelete, "/v1/notes/:id/locations/:locationID", app.requireActivatedUser(app.generalRateLimit(app.deleteLinkHandler)))
 
 	router.HandlerFunc(http.MethodPost, "/v1/notes/:id/images", app.requireActivatedUser(app.generalRateLimit(app.imageUploadHandler)))
 	router.HandlerFunc(http.MethodDelete, "/v1/notes/:id/images/*s3_key", app.requireActivatedUser(app.generalRateLimit(app.imageDeleteHandler)))

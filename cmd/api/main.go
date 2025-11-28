@@ -29,6 +29,7 @@ import (
 	"shuvoedward/Bible_project/internal/mailer"
 	"shuvoedward/Bible_project/internal/ratelimit"
 	"shuvoedward/Bible_project/internal/s3_service"
+	"shuvoedward/Bible_project/internal/service"
 	"strconv"
 	"sync"
 	"time"
@@ -75,21 +76,24 @@ type config struct {
 	corsTrustedOrigin string
 }
 
+type RateLimit struct {
+	IPRateLimiter   *ratelimit.RateLimiter
+	NoteRateLimiter *ratelimit.RateLimiter
+	AuthRateLimiter *ratelimit.RateLimiter
+}
 type application struct {
+	wg               sync.WaitGroup
 	ctx              context.Context
 	cancel           context.CancelFunc
-	config           config
-	books            map[string]struct{}
-	booksSearchIndex map[string][]string
 	logger           *slog.Logger
+	config           config
+	books            map[string]struct{} // name of all the Bible books "John"
+	booksSearchIndex map[string][]string // Book names "joh": ["John", "1 John", "2 John", "3 John"]
 	redis            *cache.RedisClient
 	models           data.Models
 	mailer           *mailer.Mailer
-	wg               sync.WaitGroup
-	authRateLimiter  *ratelimit.RateLimiter
-	ipRateLimiter    *ratelimit.RateLimiter
-	noteRateLimiter  *ratelimit.RateLimiter // TODO: Change name to note to writeRateLimit
-	s3ImageService   *s3_service.S3ImageService
+	RateLimit
+	s3ImageService *s3_service.S3ImageService
 }
 
 func main() {
@@ -157,13 +161,12 @@ func main() {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
+	logger.Info("Successful connection to redis")
 
 	books := make(map[string]struct{}, 66)
 	for _, bookTitle := range data.AllBooks {
 		books[bookTitle] = struct{}{}
 	}
-
-	logger.Info("Successful connection to redis")
 
 	booksSearchIndex := data.BuildBookSearchIndex(data.AllBooks)
 
@@ -195,6 +198,23 @@ func main() {
 		return time.Now().Unix()
 	}))
 
+	rateLimit := RateLimit{
+		IPRateLimiter:   ratelimit.NewRateLimiter(cfg.limiter.ipRateLimit, time.Minute),
+		NoteRateLimiter: ratelimit.NewRateLimiter(cfg.limiter.noteRateLimit, time.Minute),
+		AuthRateLimiter: ratelimit.NewRateLimiter(cfg.limiter.authRatelimit, time.Minute),
+	}
+
+	models := data.NewModels(db)
+
+	services := service.NewServices(
+		models,
+		logger,
+		s3ImageService,
+		redisClient,
+		mailer,
+		books,
+	)
+
 	app := application{
 		ctx:              ctx,
 		cancel:           cancel,
@@ -203,17 +223,18 @@ func main() {
 		booksSearchIndex: booksSearchIndex,
 		logger:           logger,
 		redis:            redisClient,
-		models:           data.NewModels(db),
+		models:           models,
 		mailer:           mailer,
-		ipRateLimiter:    ratelimit.NewRateLimiter(cfg.limiter.ipRateLimit, time.Minute),
-		noteRateLimiter:  ratelimit.NewRateLimiter(cfg.limiter.noteRateLimit, time.Minute),
-		authRateLimiter:  ratelimit.NewRateLimiter(cfg.limiter.authRatelimit, time.Minute),
+		RateLimit:        rateLimit,
 		s3ImageService:   s3ImageService,
 	}
 
+	// Create all handlers
+	handlers := NewHandlers(&app, services)
+
 	app.background(app.runBackgroundTasks)
 
-	err = app.serve()
+	err = app.serve(handlers)
 	if err != nil {
 		logger.Error(err.Error())
 		os.Exit(1)
