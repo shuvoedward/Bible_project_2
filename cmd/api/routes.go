@@ -16,6 +16,7 @@ func (app *application) routes(handlers *Handlers) http.Handler {
 
 	handlers.Note.RegisterRoutes(router)
 	handlers.User.RegisterRoutes(router)
+	handlers.Token.RegisterRoutes(router)
 
 	router.Handler(http.MethodGet, "/swagger/*any", httpSwagger.WrapHandler)
 
@@ -25,10 +26,6 @@ func (app *application) routes(handlers *Handlers) http.Handler {
 
 	router.HandlerFunc(http.MethodGet, "/v1/autocomplete/bible", app.generalRateLimit(app.autoCompleteHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/search/bible", app.generalRateLimit(app.searchHandler))
-
-	router.HandlerFunc(http.MethodPost, "/v1/tokens/authentication", app.authRateLimit(app.createAuthenticationTokenHandler))
-	router.HandlerFunc(http.MethodGet, "/v1/tokens/password-reset", app.authRateLimit(app.createPasswordResetTokenHandler))
-	router.HandlerFunc(http.MethodGet, "/v1/tokens/activation", app.createActivationTokenHandler)
 
 	router.HandlerFunc(http.MethodPost, "/v1/highlights", app.requireActivatedUser(app.generalRateLimit(app.insertHighlightHandler)))
 	router.HandlerFunc(http.MethodPatch, "/v1/highlights/:id", app.requireActivatedUser(app.generalRateLimit(app.updateHighlightHandler)))

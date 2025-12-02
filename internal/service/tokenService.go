@@ -1,0 +1,128 @@
+package service
+
+import (
+	"errors"
+	"log/slog"
+	"shuvoedward/Bible_project/internal/cache"
+	"shuvoedward/Bible_project/internal/data"
+	"shuvoedward/Bible_project/internal/validator"
+	"time"
+)
+
+type TokenService struct {
+	tokenModel data.TokenModel
+	userModel  data.UserModel
+	redis      *cache.RedisClient
+	logger     *slog.Logger
+}
+
+func NewTokenService(
+	tokenModel data.TokenModel,
+	userModel data.UserModel,
+	logger *slog.Logger) *TokenService {
+	return &TokenService{
+		tokenModel: tokenModel,
+		userModel:  userModel,
+		logger:     logger,
+	}
+}
+
+// CreatePasswordResetToken validates email and creates password reset token for the user by their email
+// Returns the user email, plaintext token, validation and error
+func (s *TokenService) CreatePasswordResetToken(email string) (string, string, *validator.Validator, error) {
+	v := validator.New()
+
+	validateEmail(v, email)
+	if !v.Valid() {
+		return "", "", v, nil
+	}
+
+	user, err := s.userModel.GetByEmail(email)
+	if err != nil {
+		if errors.Is(err, data.ErrRecordNotFound) {
+			return "", "", nil, ErrEmailNotFound
+		}
+		return "", "", nil, err
+	}
+
+	if !user.Activated {
+		return "", "", nil, ErrUserNotActivated
+	}
+
+	token, err := s.tokenModel.New(user.ID, 45*time.Minute, data.ScopePasswordReset)
+	if err != nil {
+		return "", "", nil, err
+	}
+
+	return user.Email, token.Plaintext, nil, nil
+}
+
+// CreateAuthToken validates user email and password and creates authentication token
+// Returns token plain text and validation and error
+func (s *TokenService) CreateAuthToken(email, password string) (string, *validator.Validator, error) {
+	v := validator.New()
+	validateEmail(v, email)
+	validatePassword(v, password)
+	if !v.Valid() {
+		return "", v, nil
+	}
+
+	user, err := s.userModel.GetByEmail(email)
+	if err != nil {
+		if errors.Is(err, data.ErrRecordNotFound) {
+			return "", nil, ErrEmailNotFound
+		}
+		return "", nil, err
+	}
+
+	match, err := user.Password.Matches(password)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if !match {
+		return "", nil, ErrPasswordNotMatch
+	}
+
+	token, err := s.tokenModel.New(user.ID, 24*time.Hour, data.ScopeAuthentication)
+	if err != nil {
+		return "", nil, err
+	}
+
+	err = s.redis.SetToken(token.Plaintext, user.ID, user.Activated)
+	if err != nil {
+		s.logger.Error(err.Error())
+	}
+
+	return token.Plaintext, nil, nil
+}
+
+// CreateActivationToken validates email and creates activation token. Also validates if user exists
+// Returns token plaintext, user's email, validatoin and error
+func (s *TokenService) CreateActivationToken(email string) (string, string, *validator.Validator, error) {
+	v := validator.New()
+	validateEmail(v, email)
+	if !v.Valid() {
+		return "", "", nil, ErrEmailNotFound
+	}
+
+	user, err := s.userModel.GetByEmail(email)
+	if err != nil {
+		if errors.Is(err, data.ErrRecordNotFound) {
+			return "", "", nil, ErrEmailNotFound
+		}
+		return "", "", nil, err
+	}
+
+	if user.Activated {
+		// v.AddError("email", "user has already been activated")
+		return "", "", nil, ErrUserActivated
+	}
+
+	token, err := s.tokenModel.New(user.ID, 3*24*time.Hour, data.ScopeActivation)
+	if err != nil {
+		return "", "", nil, err
+	}
+
+	return token.Plaintext, user.Email, nil, nil
+}
