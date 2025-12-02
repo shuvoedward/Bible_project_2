@@ -109,6 +109,10 @@ func (h *UserHandler) Activated(w http.ResponseWriter, r *http.Request) {
 	token := params.ByName("token")
 
 	user, err := h.service.ActivateUser(token)
+	if err != nil {
+		h.handleUserError(w, r, err)
+		return
+	}
 
 	err = h.app.writeJSON(w, http.StatusOK, envelope{"user": user}, nil)
 	if err != nil {
