@@ -134,7 +134,6 @@ func (m userModel) GetByEmail(email string) (*User, error) {
 }
 
 func (m userModel) GetForToken(tokenPlainText, tokenScope string) (*User, error) {
-
 	tokenHash := sha256.Sum256([]byte(tokenPlainText))
 
 	query := `
@@ -181,9 +180,12 @@ func (m userModel) GetForToken(tokenPlainText, tokenScope string) (*User, error)
 
 func (m userModel) Update(user *User) error {
 	query := `
-		UPDATE users
-		SET name = $1, email = $2, password_hash=$3, activated=$4, version=version+1 
-		WHERE id = $5 AND version = $6
+		UPDATE 
+			users
+		SET 
+			name = $1, email = $2, password_hash=$3, activated=$4, version=version+1 
+		WHERE 
+			id = $5 AND version = $6
 		RETURNING version`
 
 	args := []any{

@@ -49,8 +49,6 @@ func (h *NoteHandler) RegisterRoutes(router *httprouter.Router) {
 		h.app.generalRateLimit(h.app.requireActivatedUser(h.DeleteLink)))
 }
 
-var validationError = errors.New("validation error")
-
 type CreateNoteInput struct {
 	Title    string `json:"title"`
 	Content  string `json:"content"`
@@ -143,7 +141,6 @@ func (h *NoteHandler) handleNoteError(w http.ResponseWriter, r *http.Request, er
 	default:
 		h.app.serverErrorResponse(w, r, err)
 	}
-	return
 }
 
 // deleteNoteHandler deletes a note

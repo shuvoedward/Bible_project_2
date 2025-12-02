@@ -10,11 +10,11 @@ import (
 // Services contains all business logic services
 type Service struct {
 	Note *NoteService
+	User *UserService
 }
 
 // NewServices creates all services with their dependencies
 // Centralize service creation
-
 func NewServices(
 	models data.Models,
 	logger *slog.Logger,
@@ -31,6 +31,11 @@ func NewServices(
 			models.NoteImages,
 			s3Service,
 			noteValidator,
+			logger,
+		),
+		User: NewUserService(
+			models.Users,
+			models.Tokens,
 			logger,
 		),
 	}

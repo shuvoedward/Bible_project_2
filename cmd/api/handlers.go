@@ -6,6 +6,7 @@ import "shuvoedward/Bible_project/internal/service"
 // This is specific to the HTTP API entry point
 type Handlers struct {
 	Note *NoteHandler
+	User *UserHandler
 }
 
 // NewHandlers creates all HTTP handlers
@@ -13,5 +14,6 @@ type Handlers struct {
 func NewHandlers(app *application, services *service.Service) *Handlers {
 	return &Handlers{
 		Note: NewNoteHandler(app, services.Note),
+		User: NewUserHandler(app, services.User),
 	}
 }

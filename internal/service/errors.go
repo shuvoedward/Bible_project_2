@@ -9,3 +9,8 @@ var (
 	ErrNoteNotFound    = errors.New("note not found")
 	ErrUnauthorized    = errors.New("unauthorized access")
 )
+
+var (
+	ErrDuplicateEmail = errors.New("user with this email already exists")
+	ErrTokenNotFound  = errors.New("invalid or expired token")
+)

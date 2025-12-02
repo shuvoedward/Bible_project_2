@@ -15,6 +15,7 @@ func (app *application) routes(handlers *Handlers) http.Handler {
 	router.RedirectTrailingSlash = false
 
 	handlers.Note.RegisterRoutes(router)
+	handlers.User.RegisterRoutes(router)
 
 	router.Handler(http.MethodGet, "/swagger/*any", httpSwagger.WrapHandler)
 
@@ -24,10 +25,6 @@ func (app *application) routes(handlers *Handlers) http.Handler {
 
 	router.HandlerFunc(http.MethodGet, "/v1/autocomplete/bible", app.generalRateLimit(app.autoCompleteHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/search/bible", app.generalRateLimit(app.searchHandler))
-
-	router.HandlerFunc(http.MethodPost, "/v1/users", app.authRateLimit(app.registerUserHandler))
-	router.HandlerFunc(http.MethodGet, "/v1/users/activated/:token", app.authRateLimit(app.activateUserHandler))
-	router.HandlerFunc(http.MethodPut, "/v1/users/password", app.authRateLimit(app.updateUserPasswordHandler))
 
 	router.HandlerFunc(http.MethodPost, "/v1/tokens/authentication", app.authRateLimit(app.createAuthenticationTokenHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/tokens/password-reset", app.authRateLimit(app.createPasswordResetTokenHandler))
