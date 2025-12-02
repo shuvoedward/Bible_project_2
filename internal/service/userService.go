@@ -133,12 +133,16 @@ func validateUserRegistration(user data.User, password string) *validator.Valida
 	v.Check(user.Name != "", "name", "must be provided")
 	v.Check(len(user.Name) <= 500, "name", "must not be more than 500 bytes long")
 
-	v.Check(user.Email != "", "email", "must be provided")
-	v.Check(validator.Matches(user.Email, validator.EmailRX), "email", "must be a valid email")
+	validateEmail(v, user.Email)
 
 	validatePassword(v, password)
 
 	return v
+}
+
+func validateEmail(v *validator.Validator, email string) {
+	v.Check(email != "", "email", "must be provided")
+	v.Check(validator.Matches(email, validator.EmailRX), "email", "must be a valid email")
 }
 
 func validatePassword(v *validator.Validator, password string) {
