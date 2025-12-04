@@ -9,9 +9,10 @@ import (
 
 // Services contains all business logic services
 type Service struct {
-	Note  *NoteService
-	User  *UserService
-	Token *TokenService
+	Note      *NoteService
+	User      *UserService
+	Token     *TokenService
+	Highlight *HighlightService
 }
 
 // NewServices creates all services with their dependencies
@@ -42,6 +43,11 @@ func NewServices(
 		Token: NewTokenService(
 			models.Tokens,
 			models.Users,
+			logger,
+		),
+		Highlight: NewHighlightService(
+			models.Highlights,
+			NewBibleValidator(books),
 			logger,
 		),
 	}

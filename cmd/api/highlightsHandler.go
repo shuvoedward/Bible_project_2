@@ -4,8 +4,37 @@ import (
 	"errors"
 	"net/http"
 	"shuvoedward/Bible_project/internal/data"
-	"shuvoedward/Bible_project/internal/validator"
+	"shuvoedward/Bible_project/internal/service"
+
+	"github.com/julienschmidt/httprouter"
 )
+
+type HighlightHandler struct {
+	app     *application
+	service *service.HighlightService
+}
+
+func NewHighlightHandler(app *application, service *service.HighlightService) *HighlightHandler {
+	return &HighlightHandler{
+		app:     app,
+		service: service,
+	}
+}
+
+func (h *HighlightHandler) RegisterRoutes(router httprouter.Router) {
+	router.HandlerFunc(http.MethodPost, "/v1/highlights", h.app.generalRateLimit(h.app.requireActivatedUser(h.Insert)))
+	router.HandlerFunc(http.MethodPatch, "/v1/highlights/:id", h.app.requireActivatedUser(h.app.generalRateLimit(h.Update)))
+	router.HandlerFunc(http.MethodDelete, "/v1/highlights/:id", h.app.generalRateLimit(h.app.requireActivatedUser(h.Delete)))
+}
+
+func (h *HighlightHandler) handleHighlightError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, service.ErrHighlightNotFound):
+		h.app.notFoundResponse(w, r)
+	default:
+		h.app.serverErrorResponse(w, r, err)
+	}
+}
 
 // @Summary Create a new highlight
 // @Description Create a new Bible verse highlight with color and position details
@@ -19,37 +48,31 @@ import (
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Security ApiKeyAuth
 // @Router /v1/highlights [post]
-func (app *application) insertHighlightHandler(w http.ResponseWriter, r *http.Request) {
-	user := app.contextGetUser(r)
+func (h *HighlightHandler) Insert(w http.ResponseWriter, r *http.Request) {
+	user := h.app.contextGetUser(r)
 
 	var highlight data.Highlight
 
-	err := app.readJSON(r, &highlight)
+	err := h.app.readJSON(r, &highlight)
 	if err != nil {
-		app.badRequestResponse(w, r, err)
+		h.app.badRequestResponse(w, r, err)
 		return
 	}
 
-	// validation error
-	v := validator.New()
-
-	highlight.UserID = &user.ID
-
-	app.validateHighlight(v, &highlight)
-	if !v.Valid() {
-		app.failedValidationResponse(w, r, v.Errors)
+	v, err := h.service.InsertHighlight(&highlight, user.ID)
+	if v != nil && !v.Valid() {
+		h.app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
-	err = app.models.Highlights.Insert(&highlight)
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
+		h.handleHighlightError(w, r, err)
 		return
 	}
 
-	err = app.writeJSON(w, http.StatusCreated, envelope{"highlight": highlight}, nil)
+	err = h.app.writeJSON(w, http.StatusCreated, envelope{"highlight": highlight}, nil)
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
+		h.app.serverErrorResponse(w, r, err)
 	}
 }
 
@@ -68,12 +91,12 @@ func (app *application) insertHighlightHandler(w http.ResponseWriter, r *http.Re
 // @Failure 500 {object} object{error=string} "Internal server error"
 // @Security ApiKeyAuth
 // @Router /v1/highlights/{id} [patch]
-func (app *application) updateHighlightHandler(w http.ResponseWriter, r *http.Request) {
-	user := app.contextGetUser(r)
+func (h *HighlightHandler) Update(w http.ResponseWriter, r *http.Request) {
+	user := h.app.contextGetUser(r)
 
-	id, err := app.readIDParam(r, "id")
+	highlightID, err := h.app.readIDParam(r, "id")
 	if err != nil {
-		app.badRequestResponse(w, r, err)
+		h.app.badRequestResponse(w, r, err)
 		return
 	}
 
@@ -81,42 +104,33 @@ func (app *application) updateHighlightHandler(w http.ResponseWriter, r *http.Re
 		Color string `json:"color"`
 	}
 
-	err = app.readJSON(r, &input)
+	err = h.app.readJSON(r, &input)
 	if err != nil {
-		app.badRequestResponse(w, r, err)
+		h.app.badRequestResponse(w, r, err)
 		return
 	}
 
-	// validate
-	v := validator.New()
-
-	v.Check(input.Color != "", "color", "must be provided")
-
-	// Optional: Add format validation for color (hex, rgb, etc.)
-	// v.Check(isValidColor(input.Color), "color", "must be a valid color format")
-
-	if !v.Valid() {
-		app.failedValidationResponse(w, r, v.Errors)
+	v, err := h.service.UpdateHighlight(highlightID, user.ID, input.Color)
+	if v != nil && !v.Valid() {
+		h.app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
-
-	err = app.models.Highlights.Update(id, user.ID, input.Color)
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
+		h.handleHighlightError(w, r, err)
 		return
 	}
 
 	response := struct {
-		ID    int64  `json:"id"`
-		Color string `json:"color"`
+		HighlightID int64  `json:"id"`
+		Color       string `json:"color"`
 	}{
-		ID:    id,
-		Color: input.Color,
+		HighlightID: highlightID,
+		Color:       input.Color,
 	}
 
-	err = app.writeJSON(w, http.StatusOK, envelope{"highlights": response}, nil)
+	err = h.app.writeJSON(w, http.StatusOK, envelope{"highlights": response}, nil)
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
+		h.app.serverErrorResponse(w, r, err)
 	}
 }
 
@@ -131,23 +145,22 @@ func (app *application) updateHighlightHandler(w http.ResponseWriter, r *http.Re
 // @Failure 500 {object} object{error=string} "Internal server error"
 // @Security ApiKeyAuth
 // @Router /v1/highlights/{id} [delete]
-func (app *application) deleteHighlightHandler(w http.ResponseWriter, r *http.Request) {
-	id, err := app.readIDParam(r, "id")
+func (h *HighlightHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	highlightID, err := h.app.readIDParam(r, "id")
 	if err != nil {
-		app.badRequestResponse(w, r, err)
+		h.app.badRequestResponse(w, r, err)
 		return
 	}
 
-	user := app.contextGetUser(r)
+	user := h.app.contextGetUser(r)
 
-	err = app.models.Highlights.Delete(id, user.ID)
+	v, err := h.service.DeleteHighlight(highlightID, user.ID)
+	if v != nil && !v.Valid() {
+		h.app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
 	if err != nil {
-		switch {
-		case errors.Is(err, data.ErrRecordNotFound):
-			app.notFoundResponse(w, r)
-		default:
-			app.serverErrorResponse(w, r, err)
-		}
+		h.handleHighlightError(w, r, err)
 		return
 	}
 

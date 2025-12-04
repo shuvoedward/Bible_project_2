@@ -18,3 +18,7 @@ var (
 	ErrPasswordNotMatch = errors.New("password did not match")
 	ErrUserActivated    = errors.New("user has already been activated")
 )
+
+var (
+	ErrHighlightNotFound = errors.New("highlight not found")
+)

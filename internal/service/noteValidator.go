@@ -7,11 +7,12 @@ import (
 
 // NoteValidtor handles note validation logic
 type NoteValidator struct {
-	books map[string]struct{} // Bible books for validation
+	BibleValidator *BibleValidator
 }
 
 func NewNoteValidator(books map[string]struct{}) *NoteValidator {
-	return &NoteValidator{books: books}
+	return &NoteValidator{
+		BibleValidator: NewBibleValidator(books)}
 }
 
 // ValidateNoteCreation based on note type
@@ -60,27 +61,15 @@ func (nv *NoteValidator) ValidateLocation(v *validator.Validator, location *data
 		return
 	}
 
-	// Validate book
-	v.Check(location.Book != "", "book", "must be provided")
-	if location.Book != "" {
-		_, exists := nv.books[location.Book]
-		v.Check(exists, "book", "must be a valid Bible book")
-	}
-
-	// Validate chapter and verses
-	v.Check(location.Chapter > 0 && location.Chapter <= 150, "chapter", "must be between 1 and 150")
-	v.Check(location.StartVerse > 0 && location.StartVerse <= 176, "start_verse", "must be between 1 and 176")
-	v.Check(location.EndVerse > 0 && location.EndVerse <= 176, "end_verse", "must be between 1 and 176")
-	v.Check(location.StartVerse <= location.EndVerse, "verse", "start verse must be less than or equal to end verse")
-
-	// Validate offsets
-	v.Check(location.StartOffset >= 0, "start_offset", "cannot be negative")
-	v.Check(location.EndOffset >= 0, "end_offset", "cannot be negative")
-
-	// For single verse, start offset must be before end offset
-	if location.StartVerse == location.EndVerse && location.EndOffset != 0 {
-		v.Check(location.StartOffset < location.EndOffset, "offset", "start offset must be less than end offset")
-	}
+	nv.BibleValidator.ValidateBibleLocation(
+		v,
+		location.Book,
+		location.Chapter,
+		location.StartVerse,
+		location.EndVerse,
+		location.StartOffset,
+		location.EndOffset,
+	)
 }
 
 // ValidateUpdateNote validates note updates
@@ -102,33 +91,19 @@ func (nv *NoteValidator) ValidateUpdateNote(content *data.NoteContent) *validato
 func (nv *NoteValidator) ValidateNoteLink(location *data.NoteInputLocation) *validator.Validator {
 	v := validator.New()
 
-	//
 	v.Check(location.NoteID > 0, "note_id", "must be a valid id")
 
-	// Validate book
-	v.Check(location.Book != "", "book", "must be provided")
-	if location.Book != "" {
-		_, exists := nv.books[location.Book]
-		v.Check(exists, "book", "must be a valid Bible book")
-	}
-
-	// Validate chapter and verses
-	v.Check(location.Chapter > 0 && location.Chapter <= 150, "chapter", "must be between 1 and 150")
-	v.Check(location.StartVerse > 0 && location.StartVerse <= 176, "start_verse", "must be between 1 and 176")
-	v.Check(location.EndVerse > 0 && location.EndVerse <= 176, "end_verse", "must be between 1 and 176")
-	v.Check(location.StartVerse <= location.EndVerse, "verse", "start verse must be less than or equal to end verse")
-
-	// Validate offsets
-	v.Check(location.StartOffset >= 0, "start_offset", "cannot be negative")
-	v.Check(location.EndOffset >= 0, "end_offset", "cannot be negative")
-
-	// For single verse, start offset must be before end offset
-	if location.StartVerse == location.EndVerse && location.EndOffset != 0 {
-		v.Check(location.StartOffset < location.EndOffset, "offset", "start offset must be less than end offset")
-	}
+	nv.BibleValidator.ValidateBibleLocation(
+		v,
+		location.Book,
+		location.Chapter,
+		location.StartVerse,
+		location.EndVerse,
+		location.StartOffset,
+		location.EndOffset,
+	)
 
 	return v
-
 }
 
 func (nv *NoteValidator) ValidateDeleteLink(noteID, locationID, userID int64) *validator.Validator {
