@@ -21,4 +21,10 @@ var (
 
 var (
 	ErrHighlightNotFound = errors.New("highlight not found")
+	ErrPassageNotFound   = errors.New("passage not found")
+)
+
+// AutocompleteService errors
+var (
+	ErrEmptyQuery = errors.New("query empty")
 )

@@ -213,6 +213,7 @@ func main() {
 		redisClient,
 		mailer,
 		books,
+		booksSearchIndex,
 	)
 
 	app := application{

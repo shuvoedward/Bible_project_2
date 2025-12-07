@@ -3,9 +3,43 @@ package main
 import (
 	"errors"
 	"net/http"
-	"shuvoedward/Bible_project/internal/data"
-	"shuvoedward/Bible_project/internal/validator"
+	"shuvoedward/Bible_project/internal/service"
+
+	"github.com/julienschmidt/httprouter"
 )
+
+type BookHandler struct {
+	app                 *application
+	bookService         *service.BookService
+	autocompleteService *service.AutocompleteService
+}
+
+func NewBookHandler(
+	app *application,
+	bookService *service.BookService,
+	autocompleteService *service.AutocompleteService,
+) *BookHandler {
+	return &BookHandler{
+		app:                 app,
+		bookService:         bookService,
+		autocompleteService: autocompleteService,
+	}
+}
+
+func (h *BookHandler) RegisterRoutes(router *httprouter.Router) {
+	router.HandlerFunc(http.MethodGet, "/v1/bible/:book/:chapter", h.app.generalRateLimit(h.GetPassageWithUserData))
+	router.HandlerFunc(http.MethodGet, "/v1/autocomplete/bible", h.app.generalRateLimit(h.Autocomplete))
+	router.HandlerFunc(http.MethodGet, "/v1/search/bible", h.app.generalRateLimit(h.Search))
+}
+
+func (h *BookHandler) handlerBooksError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, service.ErrPassageNotFound):
+		h.app.notFoundResponse(w, r)
+	default:
+		h.app.serverErrorResponse(w, r, err)
+	}
+}
 
 // @Summary Get a Bible chapter or verse range
 // @Description Retrieves the text for a specified Bible chapter or a range of verses, along with associated user-specific data (highlights and notes) if the user is logged in and activated.
@@ -22,58 +56,36 @@ import (
 // @Failure 404 {object} object{error=string} "Passage not found (e.g., invalid book/chapter combination)"
 // @Failure 500 {object} object{error=string} "Internal server error"
 // @Router /v1/bible/{book}/{chapter} [get]
-func (app *application) getChapterOrVerses(w http.ResponseWriter, r *http.Request) {
-	filter, err := app.getLocationFilters(r)
+func (h *BookHandler) GetPassageWithUserData(w http.ResponseWriter, r *http.Request) {
+	// if user not logged in always send passage
+	// if logged in, send passage
+	// along with user data related to the passage
+	// user can have no notes, highlights, cross-ref notes
+	// user has data but all of them or one of them failed to load
+	// still send the partial data - user can reload again
+	user := h.app.contextGetUser(r)
+
+	filter, err := h.app.getLocationFilters(r)
 	if err != nil {
-		app.badRequestResponse(w, r, err)
+		h.app.badRequestResponse(w, r, err)
 		return
 	}
 
-	v := validator.New()
-
-	app.validateLocationFilter(v, filter)
-	if !v.Valid() {
-		app.notFoundResponse(w, r)
+	response, v, err := h.bookService.GetPassageWithUserData(user.ID, user.Activated, filter)
+	if v != nil && !v.Valid() {
+		h.app.notFoundResponse(w, r)
 		return
 	}
 
-	passage, err := app.models.Passages.Get(filter)
 	if err != nil {
-		switch {
-		case errors.Is(err, data.ErrRecordNotFound):
-			app.notFoundResponse(w, r)
-		default:
-			app.serverErrorResponse(w, r, err)
-		}
+		h.handlerBooksError(w, r, err)
 		return
 	}
 
-	// Retrieve user-specific data (highlights and notes) if user is authenticated
-	// Errors here don't block the response - we log them and return passage without user data
-	highlights := []*data.Highlight{}
-	var bibleNotes, crossRefNotes []*data.NoteResponse
-
-	user := app.contextGetUser(r)
-	if !user.IsAnonymous() && user.Activated {
-		highlights, err = app.models.Highlights.Get(user.ID, filter)
-		if err != nil {
-			app.logger.Error(err.Error())
-		}
-		bibleNotes, crossRefNotes, err = app.models.Notes.GetAllLocatedForChapter(user.ID, filter)
-		if err != nil {
-			app.logger.Error(err.Error())
-		}
-	}
-
-	err = app.writeJSON(w, http.StatusOK, envelope{
-		"passage":         passage,
-		"highlights":      highlights,
-		"bible_notes":     bibleNotes,
-		"cross-ref_notes": crossRefNotes,
-	}, nil)
+	err = h.app.writeJSON(w, http.StatusOK, envelope{"response": response}, nil)
 
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
+		h.app.serverErrorResponse(w, r, err)
 	}
 }
 
@@ -87,57 +99,22 @@ func (app *application) getChapterOrVerses(w http.ResponseWriter, r *http.Reques
 // @Failure 400 {object} object{error=string} "Query parameter is empty or missing"
 // @Failure 500 {object} object{error=string} "Internal server error"
 // @Router /v1/autocomplete [get]
-func (app *application) autoCompleteHandler(w http.ResponseWriter, r *http.Request) {
+func (h *BookHandler) Autocomplete(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("q")
 	if query == "" {
-		app.badRequestResponse(w, r, errors.New("query can not be empty"))
+		h.app.badRequestResponse(w, r, errors.New("query can not be empty"))
 		return
 	}
 
-	// identify what type of search the user is performing
-	result := identifySearchType(query, app.booksSearchIndex)
-	if result == nil {
-		// Query doesn't match any pattern(too short, invalid format)
-		return
-	}
-
-	// Build the API response based on search type
-	var response struct {
-		Type   string             `json:"type"` // 3 types : "book", "verse", "word"; "book": action is to autocomplete
-		Books  []string           `json:"books,omitempty"`
-		Words  []*data.WordMatch  `json:"words,omitempty"`
-		Verses []*data.VerseMatch `json:"verses,omitempty"`
-	}
-
-	switch result.Type {
-	case "book":
-		response.Type = "book"
-		response.Books = result.Suggestions
-
-	case "word":
-		words, err := app.models.Passages.SuggestWords(result.Query)
-		if err != nil {
-			app.serverErrorResponse(w, r, err)
-			return
-		}
-
-		response.Type = "word"
-		response.Words = words // May be empty - that's ok
-
-	case "verse":
-		verses, err := app.models.Passages.SuggestVerses(result.Query)
-		if err != nil {
-			app.serverErrorResponse(w, r, err)
-			return
-		}
-
-		response.Type = "verse"
-		response.Verses = verses // May be empty - that's ok
-	}
-
-	err := app.writeJSON(w, http.StatusOK, envelope{"autocomplete": response}, nil)
+	autocomplete, err := h.autocompleteService.Autocomplete(query)
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
+		h.handlerBooksError(w, r, err)
+		return
+	}
+
+	err = h.app.writeJSON(w, http.StatusOK, envelope{"autocomplete": autocomplete}, nil)
+	if err != nil {
+		h.app.serverErrorResponse(w, r, err)
 	}
 }
 
@@ -153,28 +130,29 @@ func (app *application) autoCompleteHandler(w http.ResponseWriter, r *http.Reque
 // @Failure 400 {object} object{error=string} "Invalid query parameters (empty query, empty metadata)"
 // @Failure 500 {object} object{error=string} "Internal server error"
 // @Router /v1/search/bible [get]
-func (app *application) searchHandler(w http.ResponseWriter, r *http.Request) {
+func (h *BookHandler) Search(w http.ResponseWriter, r *http.Request) {
 	searchQuery := r.URL.Query().Get("q")
 
 	if searchQuery == "" {
-		app.badRequestResponse(w, r, errors.New("query parameter 'q' can not be empty"))
+		h.app.badRequestResponse(w, r, errors.New("query parameter 'q' can not be empty"))
 		return
 	}
 
-	filters, err := app.readPaginationParams(r)
+	filters, err := h.app.readPaginationParams(r)
 	if err != nil {
-		app.badRequestResponse(w, r, err)
+		h.app.badRequestResponse(w, r, err)
 		return
 	}
 
-	verses, metadata, err := app.models.Passages.SearchVersesByWord(searchQuery, filters)
+	verses, metadata, err := h.bookService.SearchVersesByWord(searchQuery, filters)
+
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
+		h.handlerBooksError(w, r, err)
 		return
 	}
 
-	err = app.writeJSON(w, http.StatusOK, envelope{"verses": verses, "metadata": metadata}, nil)
+	err = h.app.writeJSON(w, http.StatusOK, envelope{"verses": verses, "metadata": metadata}, nil)
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
+		h.app.serverErrorResponse(w, r, err)
 	}
 }

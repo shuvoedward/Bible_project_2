@@ -64,7 +64,7 @@ type CreateNoteInput struct {
 	EndOffset   int
 }
 
-// createNote handles validation and insertion based on note type.
+// CreateNote handles validation and insertion based on note type.
 // Returns validation errors, duplicate errors, or database errors.
 func (s *NoteService) CreateNote(userID int64, input CreateNoteInput) (*data.NoteResponse, *validator.Validator, error) {
 	// 1. Convert input to domain models

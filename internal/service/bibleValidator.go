@@ -21,6 +21,22 @@ func (bv *BibleValidator) ValidateBibleLocation(
 	startOffset, endOffset int,
 ) {
 	// Validate book
+	bv.ValidateBook(v, book, chapter, startVerse, endVerse)
+	// Validate offsets
+	v.Check(startOffset >= 0, "start_offset", "cannot be negative")
+	v.Check(endOffset >= 0, "end_offset", "cannot be negative")
+
+	// For single verse, offsets must be in order
+	if startVerse == endVerse && endOffset != 0 {
+		v.Check(startOffset < endOffset, "offset", "start offset must be less than end offset")
+	}
+}
+
+func (bv *BibleValidator) ValidateBook(
+	v *validator.Validator,
+	book string,
+	chapter, startVerse, endVerse int,
+) {
 	v.Check(book != "", "book", "must be provided")
 	if book != "" {
 		_, exists := bv.books[book]
@@ -34,13 +50,4 @@ func (bv *BibleValidator) ValidateBibleLocation(
 	v.Check(startVerse > 0 && startVerse <= 176, "start_verse", "must be between 1 and 176")
 	v.Check(endVerse > 0 && endVerse <= 176, "end_verse", "must be between 1 and 176")
 	v.Check(startVerse <= endVerse, "verse", "start verse must be less than or equal to end verse")
-
-	// Validate offsets
-	v.Check(startOffset >= 0, "start_offset", "cannot be negative")
-	v.Check(endOffset >= 0, "end_offset", "cannot be negative")
-
-	// For single verse, offsets must be in order
-	if startVerse == endVerse && endOffset != 0 {
-		v.Check(startOffset < endOffset, "offset", "start offset must be less than end offset")
-	}
 }

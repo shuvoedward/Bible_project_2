@@ -9,10 +9,12 @@ import (
 
 // Services contains all business logic services
 type Service struct {
-	Note      *NoteService
-	User      *UserService
-	Token     *TokenService
-	Highlight *HighlightService
+	Note         *NoteService
+	User         *UserService
+	Token        *TokenService
+	Highlight    *HighlightService
+	Book         *BookService
+	Autocomplete *AutocompleteService
 }
 
 // NewServices creates all services with their dependencies
@@ -24,6 +26,7 @@ func NewServices(
 	redisClient *cache.RedisClient,
 	mailer *mailer.Mailer,
 	books map[string]struct{},
+	booksSearchIndex map[string][]string,
 ) *Service {
 	noteValidator := NewNoteValidator(books)
 
@@ -49,6 +52,17 @@ func NewServices(
 			models.Highlights,
 			NewBibleValidator(books),
 			logger,
+		),
+		Book: NewBookService(
+			models.Passages,
+			models.Highlights,
+			models.Notes,
+			NewBibleValidator(books),
+			logger,
+		),
+		Autocomplete: NewAutocompleteService(
+			models.Passages,
+			booksSearchIndex,
 		),
 	}
 }

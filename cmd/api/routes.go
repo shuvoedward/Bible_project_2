@@ -17,15 +17,11 @@ func (app *application) routes(handlers *Handlers) http.Handler {
 	handlers.Note.RegisterRoutes(router)
 	handlers.User.RegisterRoutes(router)
 	handlers.Token.RegisterRoutes(router)
+	handlers.Book.RegisterRoutes(router)
 
 	router.Handler(http.MethodGet, "/swagger/*any", httpSwagger.WrapHandler)
 
 	router.HandlerFunc(http.MethodGet, "/v1/healthcheck", app.healthCheckHandler)
-
-	router.HandlerFunc(http.MethodGet, "/v1/bible/:book/:chapter", app.generalRateLimit(app.getChapterOrVerses))
-
-	router.HandlerFunc(http.MethodGet, "/v1/autocomplete/bible", app.generalRateLimit(app.autoCompleteHandler))
-	router.HandlerFunc(http.MethodGet, "/v1/search/bible", app.generalRateLimit(app.searchHandler))
 
 	router.HandlerFunc(http.MethodPost, "/v1/grammar/check", app.requireActivatedUser(app.grammarCheckHandler))
 
