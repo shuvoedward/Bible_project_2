@@ -28,3 +28,8 @@ var (
 var (
 	ErrEmptyQuery = errors.New("query empty")
 )
+
+// ImageService errors
+var (
+	ErrUnsupportedImageFormat = errors.New("unsupported image format")
+)

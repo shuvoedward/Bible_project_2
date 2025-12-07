@@ -1,4 +1,4 @@
-package image_compress
+package imageProcessor
 
 import (
 	"fmt"
@@ -7,13 +7,21 @@ import (
 	"github.com/h2non/bimg"
 )
 
-type ImageProcessor struct {
+type imageProcessor struct {
 	MaxWidth  int // 0 = no resize
 	MaxHeight int // 0 = no resize
 	Quality   int // 1-100, recommended 80-85 for good balance
 }
 
-func (ip *ImageProcessor) ProcessImageBuffer(buffer []byte, outputFormat string) ([]byte, error) {
+func NewImageProcessor(maxWidth, maxHeight, quality int) *imageProcessor {
+	return &imageProcessor{
+		MaxWidth:  maxWidth,
+		MaxHeight: maxHeight,
+		Quality:   quality,
+	}
+}
+
+func (ip *imageProcessor) Process(buffer []byte, outputFormat string) ([]byte, error) {
 	image := bimg.NewImage(buffer)
 
 	size, err := image.Size()

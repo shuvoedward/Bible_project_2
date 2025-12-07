@@ -15,6 +15,7 @@ type Service struct {
 	Highlight    *HighlightService
 	Book         *BookService
 	Autocomplete *AutocompleteService
+	Image        *ImageService
 }
 
 // NewServices creates all services with their dependencies
@@ -27,6 +28,7 @@ func NewServices(
 	mailer *mailer.Mailer,
 	books map[string]struct{},
 	booksSearchIndex map[string][]string,
+	imageProcessor ImageProcessor,
 ) *Service {
 	noteValidator := NewNoteValidator(books)
 
@@ -63,6 +65,12 @@ func NewServices(
 		Autocomplete: NewAutocompleteService(
 			models.Passages,
 			booksSearchIndex,
+		),
+		Image: NewImageService(
+			imageProcessor,
+			s3Service,
+			models.NoteImages,
+			models.Notes,
 		),
 	}
 }

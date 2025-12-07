@@ -10,6 +10,7 @@ type Handlers struct {
 	Token     *TokenHandler
 	Highlight *HighlightHandler
 	Book      *BookHandler
+	Image     *ImageHandler
 }
 
 // NewHandlers creates all HTTP handlers
@@ -21,5 +22,6 @@ func NewHandlers(app *application, services *service.Service) *Handlers {
 		Token:     NewTokenService(app, services.Token),
 		Highlight: NewHighlightHandler(app, services.Highlight),
 		Book:      NewBookHandler(app, services.Book, services.Autocomplete),
+		Image:     NewImageHandler(app, services.Image),
 	}
 }

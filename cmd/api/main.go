@@ -26,6 +26,7 @@ import (
 	"runtime"
 	"shuvoedward/Bible_project/internal/cache"
 	"shuvoedward/Bible_project/internal/data"
+	imageProcessor "shuvoedward/Bible_project/internal/image_compress"
 	"shuvoedward/Bible_project/internal/mailer"
 	"shuvoedward/Bible_project/internal/ratelimit"
 	"shuvoedward/Bible_project/internal/s3_service"
@@ -206,6 +207,8 @@ func main() {
 
 	models := data.NewModels(db)
 
+	imageProcessor := imageProcessor.NewImageProcessor(1920, 1920, 85)
+
 	services := service.NewServices(
 		models,
 		logger,
@@ -214,6 +217,7 @@ func main() {
 		mailer,
 		books,
 		booksSearchIndex,
+		imageProcessor,
 	)
 
 	app := application{

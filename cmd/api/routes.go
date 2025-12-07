@@ -18,15 +18,13 @@ func (app *application) routes(handlers *Handlers) http.Handler {
 	handlers.User.RegisterRoutes(router)
 	handlers.Token.RegisterRoutes(router)
 	handlers.Book.RegisterRoutes(router)
+	handlers.Image.RegisterRoutes(router)
 
 	router.Handler(http.MethodGet, "/swagger/*any", httpSwagger.WrapHandler)
 
 	router.HandlerFunc(http.MethodGet, "/v1/healthcheck", app.healthCheckHandler)
 
 	router.HandlerFunc(http.MethodPost, "/v1/grammar/check", app.requireActivatedUser(app.grammarCheckHandler))
-
-	router.HandlerFunc(http.MethodPost, "/v1/notes/:id/images", app.requireActivatedUser(app.generalRateLimit(app.imageUploadHandler)))
-	router.HandlerFunc(http.MethodDelete, "/v1/notes/:id/images/*s3_key", app.requireActivatedUser(app.generalRateLimit(app.imageDeleteHandler)))
 
 	router.Handler(http.MethodGet, "/debug/vars", expvar.Handler())
 

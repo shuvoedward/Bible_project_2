@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"mime/multipart"
 
 	"time"
 
@@ -29,23 +28,23 @@ func NewS3ImageService(s3Config *S3Config) *S3ImageService {
 	}
 }
 
-func (s *S3ImageService) UploadImage(ctx context.Context, compressedImage []byte, fileHeader *multipart.FileHeader, userID int64) (string, error) {
+func (s *S3ImageService) UploadImage(ctx context.Context, imageData []byte, fileName string, contentType string, userID int64) (string, error) {
 	// 1. Generate unique s3 key (file path: users/123/notes/20251026-abc123-def456-ghi789.jpg)
 	timeStamp := time.Now().Format("20060102")
 	uniqueID := uuid.New().String()
-	extension := getFileExtension(fileHeader.Filename)
 
-	s3Key := fmt.Sprintf("users/%d/notes/%s-%s%s", userID, timeStamp, uniqueID, extension)
+	s3Key := fmt.Sprintf("users/%d/notes/%s-%s%s", userID, timeStamp, uniqueID, fileName)
 
-	reader := bytes.NewReader(compressedImage)
+	reader := bytes.NewReader(imageData)
 
 	// 2. Upload to s3
 	_, err := s.Uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(s.S3Config.BucketName),
 		Key:         aws.String(s3Key),
 		Body:        reader,
-		ContentType: aws.String(fileHeader.Header.Get("Content-Type")),
+		ContentType: aws.String(contentType),
 	})
+	// fileHeader.Header.Get("Content-Type")
 
 	if err != nil {
 		return "", fmt.Errorf("failed to upload to S3: %w", err)

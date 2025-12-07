@@ -21,7 +21,7 @@ type PresignedURLGenerator interface {
 	GeneratePresignedURL(ctx context.Context, s3Key string, duration time.Duration) (string, error)
 }
 
-type ImageStorage interface {
+type ImageStorageNote interface {
 	ImageDeleter
 	PresignedURLGenerator
 }
@@ -30,7 +30,7 @@ type ImageStorage interface {
 type NoteService struct {
 	noteModel  data.NoteModel
 	imageModel data.ImageModel
-	imageStore ImageStorage
+	imageStore ImageStorageNote
 	validator  *NoteValidator
 	logger     *slog.Logger
 }
@@ -38,14 +38,14 @@ type NoteService struct {
 func NewNoteService(
 	noteModel data.NoteModel,
 	imageModel data.ImageModel,
-	imageStore ImageStorage,
+	imageStoreNote ImageStorageNote,
 	validator *NoteValidator,
 	logger *slog.Logger,
 ) *NoteService {
 	return &NoteService{
 		noteModel:  noteModel,
 		imageModel: imageModel,
-		imageStore: imageStore,
+		imageStore: imageStoreNote,
 		validator:  validator,
 		logger:     logger,
 	}
