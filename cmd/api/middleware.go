@@ -7,12 +7,12 @@ import (
 	"net"
 	"net/http"
 	"shuvoedward/Bible_project/internal/data"
-	"shuvoedward/Bible_project/internal/validator"
-	"strconv"
+	"shuvoedward/Bible_project/internal/service"
 	"strings"
 	"time"
 )
 
+// authenticate validates the authentication token and adds user to context
 func (app *application) authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Vary", "Authorization")
@@ -33,48 +33,10 @@ func (app *application) authenticate(next http.Handler) http.Handler {
 
 		token := headerParts[1]
 
-		v := validator.New()
-
-		v.Check(token != "", "token", "must be provided")
-		v.Check(len(token) == 26, "token", "must be 26 bytes long")
-
-		if !v.Valid() {
-			app.invalidAuthTokenResponse(w, r)
-			return
-		}
-
-		// use redis
-		userDataStr, err := app.redis.GetForToken(token)
-		if err != nil {
-			app.logger.Error(err.Error())
-		}
-
-		if userDataStr != "" {
-			// userId, activated
-			// id:userID,activated:t
-			tempUserData := strings.Split(userDataStr, ",")
-			idStr, _ := strings.CutPrefix(tempUserData[0], "id:")
-			activatedStr, _ := strings.CutPrefix(tempUserData[1], "activated:")
-
-			id, _ := strconv.ParseInt(idStr, 10, 64)
-			activated, _ := strconv.ParseBool(activatedStr)
-
-			user := &data.User{
-				ID:        id,
-				Activated: activated,
-			}
-
-			r = app.contextSetUser(r, user)
-
-			next.ServeHTTP(w, r)
-
-			return
-		}
-
-		user, err := app.models.Users.GetForToken(token, data.ScopeAuthentication)
+		user, err := app.services.Token.GetUserForToken(token)
 		if err != nil {
 			switch {
-			case errors.Is(err, data.ErrRecordNotFound):
+			case errors.Is(err, service.ErrInvalidToken):
 				app.invalidAuthTokenResponse(w, r)
 			default:
 				app.serverErrorResponse(w, r, err)
@@ -159,7 +121,7 @@ func (app *application) metrics(next http.Handler) http.Handler {
 func (app *application) generalRateLimit(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := getIP(r)
-		if !app.IPRateLimiter.Allow(ip) {
+		if !app.rateLimiter.IP.Allow(ip) {
 			app.rateLimitExceededResponse(w, r)
 			return
 		}
@@ -170,7 +132,7 @@ func (app *application) generalRateLimit(next http.HandlerFunc) http.HandlerFunc
 func (app *application) authRateLimit(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := getIP(r)
-		if !app.AuthRateLimiter.Allow(ip) {
+		if !app.rateLimiter.Auth.Allow(ip) {
 			app.rateLimitExceededResponse(w, r)
 			return
 		}

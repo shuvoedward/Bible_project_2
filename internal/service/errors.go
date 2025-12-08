@@ -2,7 +2,7 @@ package service
 
 import "errors"
 
-// Service-level errors (no ValidationError needed!)
+// Service-level errors
 var (
 	ErrInvalidNoteType = errors.New("invalid note type")
 	ErrLinkNotFound    = errors.New("link not found")
@@ -22,6 +22,7 @@ var (
 var (
 	ErrHighlightNotFound = errors.New("highlight not found")
 	ErrPassageNotFound   = errors.New("passage not found")
+	ErrInvalidToken      = errors.New("invalid token")
 )
 
 // AutocompleteService errors

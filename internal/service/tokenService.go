@@ -6,6 +6,8 @@ import (
 	"shuvoedward/Bible_project/internal/cache"
 	"shuvoedward/Bible_project/internal/data"
 	"shuvoedward/Bible_project/internal/validator"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -125,4 +127,45 @@ func (s *TokenService) CreateActivationToken(email string) (string, string, *val
 	}
 
 	return token.Plaintext, user.Email, nil, nil
+}
+
+func (s *TokenService) GetUserForToken(tokenPlainText string) (*data.User, error) {
+	v := validator.New()
+	v.Check(len(tokenPlainText) == 26, "token", "must be 26 bytes long")
+	if !v.Valid() {
+		return nil, ErrInvalidToken
+	}
+
+	userDataStr, err := s.redis.GetForToken(tokenPlainText)
+	if err == nil {
+		// cache hit
+		// userId, activated
+		// id:userID,activated:t
+		tempUserData := strings.Split(userDataStr, ",")
+		idStr, _ := strings.CutPrefix(tempUserData[0], "id:")
+		activatedStr, _ := strings.CutPrefix(tempUserData[1], "activated:")
+
+		id, _ := strconv.ParseInt(idStr, 10, 64)
+		activated, _ := strconv.ParseBool(activatedStr)
+
+		return &data.User{
+			ID:        id,
+			Activated: activated,
+		}, nil
+	}
+
+	user, err := s.userModel.GetForToken(tokenPlainText, data.ScopeAuthentication)
+	if err != nil {
+		if errors.Is(err, data.ErrRecordNotFound) {
+			return nil, ErrInvalidToken
+		}
+		return nil, err
+	}
+
+	err = s.redis.SetToken(tokenPlainText, user.ID, user.Activated)
+	if err != nil {
+		s.logger.Error("failed to cache token", "error", err)
+	}
+
+	return user, nil
 }

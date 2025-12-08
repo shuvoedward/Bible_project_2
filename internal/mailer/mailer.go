@@ -18,7 +18,7 @@ type Mailer struct {
 	sender string
 }
 
-func New(host string, port int, username, password, sender string) (*Mailer, error) {
+func NewMailer(host string, port int, username, password, sender string) (*Mailer, error) {
 	client, err := mail.NewClient(
 		host,
 		mail.WithSMTPAuth(mail.SMTPAuthLogin),

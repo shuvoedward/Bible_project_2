@@ -26,10 +26,10 @@ import (
 	"runtime"
 	"shuvoedward/Bible_project/internal/cache"
 	"shuvoedward/Bible_project/internal/data"
-	imageProcessor "shuvoedward/Bible_project/internal/image_compress"
+	imageProcessor "shuvoedward/Bible_project/internal/imageCompress"
 	"shuvoedward/Bible_project/internal/mailer"
 	"shuvoedward/Bible_project/internal/ratelimit"
-	"shuvoedward/Bible_project/internal/s3_service"
+	"shuvoedward/Bible_project/internal/s3Service"
 	"shuvoedward/Bible_project/internal/service"
 	"strconv"
 	"sync"
@@ -56,6 +56,13 @@ type config struct {
 		maxIdleTime  time.Duration
 	}
 
+	s3 struct {
+		bucketName      string
+		region          string
+		secretAccessKey string
+		accessKeyID     string
+	}
+
 	smtp struct {
 		host     string
 		port     int
@@ -77,171 +84,104 @@ type config struct {
 	corsTrustedOrigin string
 }
 
-type RateLimit struct {
-	IPRateLimiter   *ratelimit.RateLimiter
-	NoteRateLimiter *ratelimit.RateLimiter
-	AuthRateLimiter *ratelimit.RateLimiter
-}
 type application struct {
-	wg               sync.WaitGroup
-	ctx              context.Context
-	cancel           context.CancelFunc
-	logger           *slog.Logger
-	config           config
-	books            map[string]struct{} // name of all the Bible books "John"
-	booksSearchIndex map[string][]string // Book names "joh": ["John", "1 John", "2 John", "3 John"]
-	redis            *cache.RedisClient
-	models           data.Models
-	mailer           *mailer.Mailer
-	RateLimit
-	s3ImageService *s3_service.S3ImageService
+	config      config
+	logger      *slog.Logger
+	services    *service.Service
+	mailer      *mailer.Mailer
+	rateLimiter *ratelimit.RateLimiters
+	wg          *sync.WaitGroup
 }
 
 func main() {
+	// 1. Load configuration
 	var cfg config
+	loadConfig(&cfg)
 
-	flag.IntVar(&cfg.port, "port", 4000, "API server port")
-
-	flag.StringVar(&cfg.env, "env", "production", "Environment (development|staging|production)")
-
-	flag.StringVar(&cfg.LanguageToolURL, "languageToolURL", os.Getenv("LANGUAGETOOL_URL"), "LanguageTool URL")
-
-	if cfg.env == "production" {
-		password := os.Getenv("DB_PASSWORD")
-		port := getEnvAsInt("DB_PORT", 5432)
-		cfg.db.dsn = fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
-			os.Getenv("DB_USER"),
-			url.QueryEscape(password),
-			os.Getenv("DB_HOST"), // ← Changed from DB_PASSWORD
-			port,
-			os.Getenv("DB_NAME"),
-			os.Getenv("DB_SSLMODE"),
-		)
-	} else {
-		flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("BIBLE_DB_DSN"), "PostgreSQL DSN")
-	}
-	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "PostgreSQL max open connection")
-	flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", 25, "PostgreSQL max idle connection")
-	flag.DurationVar(&cfg.db.maxIdleTime, "db-max-idle-time", 15*time.Minute, "PostgreSQL max connection idle time")
-
-	flag.StringVar(&cfg.smtp.host, "smtp-host", getEnv("SMTP_HOST", "sandbox.smtp.mailtrap.io"), "SMTP host")
-	flag.IntVar(&cfg.smtp.port, "smtp-port", getEnvAsInt("SMTP_PORT", 25), "SMTP port")
-	flag.StringVar(&cfg.smtp.username, "smtp-username", os.Getenv("SMTP_USERNAME"), "SMTP username")
-	flag.StringVar(&cfg.smtp.password, "smtp-password", os.Getenv("SMTP_PASSWORD"), "SMTP password")
-	flag.StringVar(&cfg.smtp.sender, "smtp-sender", os.Getenv("SMTP_SENDER"), "SMTP sender")
-
-	flag.IntVar(&cfg.limiter.ipRateLimit, "ip-rate-limit", 200, "IP rate limit minutes")
-	flag.IntVar(&cfg.limiter.noteRateLimit, "note-rate-limit", 30, "Note rate limit in minutes")
-	flag.IntVar(&cfg.limiter.authRatelimit, "auth-rate-limit", 15, "Auth rate limit in minutes")
-
-	flag.StringVar(&cfg.redisConfig.Host, "redis-host", getEnv("REDIS_HOST", "localhost"), "Redis Host")
-	flag.StringVar(&cfg.redisConfig.Port, "redis-port", getEnv("REDIS_PORT", "6379"), "Redis Port")
-	flag.StringVar(&cfg.redisConfig.Password, "redis-password", getEnv("REDIS_PASSWORD", ""), "Redis Password")
-	flag.IntVar(&cfg.redisConfig.DB, "redis-db", 0, "Redis DB")
-	flag.IntVar(&cfg.redisConfig.PoolSize, "redis-poolsize", 10, "Redis Pool Size")
-
-	flag.StringVar(&cfg.corsTrustedOrigin, "cors-trusted-origin", "http://localhost:9000", "Cross Origin Trusted")
-
-	flag.Parse()
-
+	// 2: Initialize logger
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	ctx, cancel := context.WithCancel(context.Background())
-
-	// DB connections
-
+	// 3: Initialize infrastructure
 	db, err := openDB(cfg)
 	if err != nil {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
-	logger.Info("Successful connection to database")
+	defer db.Close()
 
 	redisClient, err := cache.NewRedisClient(cfg.redisConfig, 15*time.Minute)
 	if err != nil {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
-	logger.Info("Successful connection to redis")
+	defer redisClient.Close()
 
-	books := make(map[string]struct{}, 66)
-	for _, bookTitle := range data.AllBooks {
-		books[bookTitle] = struct{}{}
+	s3Client, err := openS3(&cfg)
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
 	}
 
+	mailer, err := openMailer(&cfg)
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
+
+	// 4. Initialize data layer models
+	model := data.NewModels(db)
+
+	// 5. Initialize domain data
+	books := makeBooksMap()
 	booksSearchIndex := data.BuildBookSearchIndex(data.AllBooks)
 
-	mailer, err := mailer.New(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender)
-	if err != nil {
-		logger.Error(err.Error())
-		os.Exit(1)
-	}
+	// 6. Intialize image processor
+	imgProcessor := imageProcessor.NewImageProcessor(1920, 1920, 85)
 
-	s3Config, err := s3_service.NewS3Config(context.Background())
-	if err != nil {
-		logger.Error(err.Error())
-		os.Exit(1)
-	}
-
-	s3ImageService := s3_service.NewS3ImageService(s3Config)
-
-	expvar.NewString("version").Set(version)
-
-	expvar.Publish("goroutines", expvar.Func(func() any {
-		return runtime.NumGoroutine()
-	}))
-
-	expvar.Publish("database", expvar.Func(func() any {
-		return db.Stats()
-	}))
-
-	expvar.Publish("timestamp", expvar.Func(func() any {
-		return time.Now().Unix()
-	}))
-
-	rateLimit := RateLimit{
-		IPRateLimiter:   ratelimit.NewRateLimiter(cfg.limiter.ipRateLimit, time.Minute),
-		NoteRateLimiter: ratelimit.NewRateLimiter(cfg.limiter.noteRateLimit, time.Minute),
-		AuthRateLimiter: ratelimit.NewRateLimiter(cfg.limiter.authRatelimit, time.Minute),
-	}
-
-	models := data.NewModels(db)
-
-	imageProcessor := imageProcessor.NewImageProcessor(1920, 1920, 85)
-
+	// 7. Initialize services (business logic layer)
 	services := service.NewServices(
-		models,
+		model,
 		logger,
-		s3ImageService,
+		s3Client,
 		redisClient,
 		mailer,
 		books,
 		booksSearchIndex,
-		imageProcessor,
+		imgProcessor,
 	)
 
+	// 8. Initialize rate limiters
+	rateLimiters := ratelimit.NewRateLimiters(
+		cfg.limiter.ipRateLimit,
+		cfg.limiter.noteRateLimit,
+		cfg.limiter.authRatelimit,
+		time.Minute,
+	)
+
+	// 9. Set up expvar metrics
+	setupMetrics(version, db)
+
+	// 10. Initialize background tasks with panic recovery
+	backgroundTasks := newBackgroundTasks(model.Tokens, logger)
+	go backgroundTasks.start()
+
+	// 11. Create application container
 	app := application{
-		ctx:              ctx,
-		cancel:           cancel,
-		config:           cfg,
-		books:            books,
-		booksSearchIndex: booksSearchIndex,
-		logger:           logger,
-		redis:            redisClient,
-		models:           models,
-		mailer:           mailer,
-		RateLimit:        rateLimit,
-		s3ImageService:   s3ImageService,
+		config:      cfg,
+		logger:      logger,
+		services:    services,
+		mailer:      mailer,
+		rateLimiter: rateLimiters,
+		wg:          &sync.WaitGroup{},
 	}
 
-	// Create all handlers
+	// 12. Create all handlers
 	handlers := NewHandlers(&app, services)
 
-	app.background(app.runBackgroundTasks)
-
+	// 13. Start server
 	err = app.serve(handlers)
 	if err != nil {
-		logger.Error(err.Error())
+		logger.Error("failed to start server", "error", err)
 		os.Exit(1)
 	}
 }
@@ -268,27 +208,111 @@ func openDB(cfg config) (*sql.DB, error) {
 	return db, nil
 }
 
-func (app *application) runBackgroundTasks() {
-	ticker := time.NewTicker(6 * time.Hour)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			app.logger.Info("running scheduled token cleanup")
-
-			affectedRows, err := app.models.Tokens.DeleteExpiredToken()
-			if err != nil {
-				app.logger.Error("scheduled token cleanup failed", "error", err)
-			} else {
-				app.logger.Info("Deleted expired token", "affectedRows", affectedRows)
-			}
-
-		case <-app.ctx.Done():
-			app.logger.Info("background tasks stopping")
-			return
-		}
+func openS3(cfg *config) (*s3Service.S3ImageService, error) {
+	s3Cfg := s3Service.S3Config{
+		Region:          cfg.s3.region, // "us-east-1"
+		BucketName:      cfg.s3.bucketName,
+		AccessKeyID:     cfg.s3.accessKeyID,     // "" for EC2 instance profile
+		SecretAccessKey: cfg.s3.secretAccessKey, // "" for EC2 instance profile
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	awsConfig, err := s3Service.LoadAWSConfig(ctx, s3Cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	s3ImageService := s3Service.NewS3ImageService(
+		awsConfig,
+		s3Cfg.BucketName,
+		s3Cfg.Region,
+	)
+
+	return s3ImageService, nil
+}
+
+func openMailer(cfg *config) (*mailer.Mailer, error) {
+	return mailer.NewMailer(
+		cfg.smtp.host,
+		cfg.smtp.port,
+		cfg.smtp.username,
+		cfg.smtp.password,
+		cfg.smtp.sender,
+	)
+}
+
+func loadConfig(cfg *config) {
+	// Server
+	flag.IntVar(&cfg.port, "port", 4000, "API server port")
+	flag.StringVar(&cfg.env, "env", "production", "Environment (development|staging|production)")
+
+	// Database
+	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "PostgreSQL max open connection")
+	flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", 25, "PostgreSQL max idle connection")
+	flag.DurationVar(&cfg.db.maxIdleTime, "db-max-idle-time", 15*time.Minute, "PostgreSQL max connection idle time")
+
+	// Redis
+	flag.StringVar(&cfg.redisConfig.Host, "redis-host", getEnv("REDIS_HOST", "localhost"), "Redis Host")
+	flag.StringVar(&cfg.redisConfig.Port, "redis-port", getEnv("REDIS_PORT", "6379"), "Redis Port")
+	flag.StringVar(&cfg.redisConfig.Password, "redis-password", getEnv("REDIS_PASSWORD", ""), "Redis Password")
+	flag.IntVar(&cfg.redisConfig.DB, "redis-db", 0, "Redis DB")
+	flag.IntVar(&cfg.redisConfig.PoolSize, "redis-poolsize", 10, "Redis Pool Size")
+
+	// SMTP
+	flag.StringVar(&cfg.smtp.host, "smtp-host", getEnv("SMTP_HOST", "sandbox.smtp.mailtrap.io"), "SMTP host")
+	flag.IntVar(&cfg.smtp.port, "smtp-port", getEnvAsInt("SMTP_PORT", 25), "SMTP port")
+	flag.StringVar(&cfg.smtp.username, "smtp-username", os.Getenv("SMTP_USERNAME"), "SMTP username")
+	flag.StringVar(&cfg.smtp.password, "smtp-password", os.Getenv("SMTP_PASSWORD"), "SMTP password")
+	flag.StringVar(&cfg.smtp.sender, "smtp-sender", os.Getenv("SMTP_SENDER"), "SMTP sender")
+
+	if cfg.env == "production" {
+		password := os.Getenv("DB_PASSWORD")
+		port := getEnvAsInt("DB_PORT", 5432)
+		cfg.db.dsn = fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
+			os.Getenv("DB_USER"),
+			url.QueryEscape(password),
+			os.Getenv("DB_HOST"), // ← Changed from DB_PASSWORD
+			port,
+			os.Getenv("DB_NAME"),
+			os.Getenv("DB_SSLMODE"),
+		)
+	} else {
+		flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("BIBLE_DB_DSN"), "PostgreSQL DSN")
+	}
+
+	flag.IntVar(&cfg.limiter.ipRateLimit, "ip-rate-limit", 200, "IP rate limit minutes")
+	flag.IntVar(&cfg.limiter.noteRateLimit, "note-rate-limit", 30, "Note rate limit in minutes")
+	flag.IntVar(&cfg.limiter.authRatelimit, "auth-rate-limit", 15, "Auth rate limit in minutes")
+
+	flag.StringVar(&cfg.corsTrustedOrigin, "cors-trusted-origin", "http://localhost:9000", "Cross Origin Trusted")
+
+	flag.Parse()
+}
+
+func makeBooksMap() map[string]struct{} {
+	books := make(map[string]struct{}, 66)
+	for _, bookTitle := range data.AllBooks {
+		books[bookTitle] = struct{}{}
+	}
+	return books
+}
+func setupMetrics(version string, db *sql.DB) {
+	expvar.NewString("version").Set(version)
+
+	expvar.Publish("goroutines", expvar.Func(func() any {
+		return runtime.NumGoroutine()
+	}))
+
+	expvar.Publish("database", expvar.Func(func() any {
+		return db.Stats()
+	}))
+
+	expvar.Publish("timestamp", expvar.Func(func() any {
+		return time.Now().Unix()
+	}))
+
 }
 
 func getEnv(key, fallback string) string {

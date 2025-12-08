@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"shuvoedward/Bible_project/internal/data"
+	"shuvoedward/Bible_project/internal/service"
 	"strconv"
 	"strings"
 
@@ -145,47 +146,34 @@ func (app *application) readIDParam(r *http.Request, idName string) (int64, erro
 	return id, nil
 }
 
-func (app *application) parseNoteQuery(r *http.Request) (*data.NoteQueryParams, error) {
-	// get note_type, page, page_size
-	var validationErrors []string
-
+func (app *application) parseNoteQuery(r *http.Request) (service.ListNotesInput, error) {
 	query := r.URL.Query()
 
 	noteType := query.Get("type")
-
-	// check noteType
-	if noteType != data.NoteTypeGeneral && noteType != data.NoteTypeBible {
-		validationErrors = append(validationErrors, "note type must be 'GENERAL' or 'BIBLE'")
-	}
-
-	sort := query.Get("sort")
-	if sort == "" {
-		validationErrors = append(validationErrors, "sort can not be empty")
+	if noteType == "" {
+		return service.ListNotesInput{}, errors.New("note_type is required")
 	}
 
 	page, err := strconv.Atoi(query.Get("page"))
 	if err != nil || page < 1 {
-		validationErrors = append(validationErrors, "page must be at least 1")
+		page = 1 // default
 	}
 
 	pageSize, err := strconv.Atoi(query.Get("page_size"))
 	if err != nil || pageSize < 1 {
-		validationErrors = append(validationErrors, "page_size must be at least 1")
+		pageSize = 10 // default
 	}
 
-	if len(validationErrors) > 0 {
-		return nil, errors.New(strings.Join(validationErrors, "; "))
+	sort := query.Get("sort")
+	if sort == "" {
+		sort = "-created_at" // default
 	}
 
-	filters := data.Filters{
+	return service.ListNotesInput{
+		NoteType: noteType,
 		Page:     page,
 		PageSize: pageSize,
 		Sort:     sort,
-	}
-
-	return &data.NoteQueryParams{
-		Filters:  filters,
-		NoteType: noteType,
 	}, nil
 }
 
