@@ -48,6 +48,7 @@ func NewServices(
 		Token: NewTokenService(
 			models.Tokens,
 			models.Users,
+			redisClient,
 			logger,
 		),
 		Highlight: NewHighlightService(
