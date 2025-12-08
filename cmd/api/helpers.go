@@ -29,7 +29,7 @@ func (app *application) getLocationFilters(r *http.Request) (*data.LocationFilte
 		return nil, errors.New("invalid chapter parameter")
 	}
 
-	var svs, evs int
+	svs, evs := -1, -1
 
 	query := r.URL.Query()
 
