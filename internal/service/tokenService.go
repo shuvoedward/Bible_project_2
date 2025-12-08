@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"shuvoedward/Bible_project/internal/cache"
 	"shuvoedward/Bible_project/internal/data"
@@ -21,10 +22,12 @@ type TokenService struct {
 func NewTokenService(
 	tokenModel data.TokenModel,
 	userModel data.UserModel,
+	redis *cache.RedisClient,
 	logger *slog.Logger) *TokenService {
 	return &TokenService{
 		tokenModel: tokenModel,
 		userModel:  userModel,
+		redis:      redis,
 		logger:     logger,
 	}
 }
@@ -91,6 +94,8 @@ func (s *TokenService) CreateAuthToken(email, password string) (string, *validat
 		return "", nil, err
 	}
 
+	fmt.Println(token.Plaintext)
+	fmt.Println(user.ID)
 	err = s.redis.SetToken(token.Plaintext, user.ID, user.Activated)
 	if err != nil {
 		s.logger.Error(err.Error())

@@ -70,7 +70,6 @@ func (h *BookHandler) GetPassageWithUserData(w http.ResponseWriter, r *http.Requ
 		h.app.badRequestResponse(w, r, err)
 		return
 	}
-
 	response, v, err := h.bookService.GetPassageWithUserData(user.ID, user.Activated, filter)
 	if v != nil && !v.Valid() {
 		h.app.notFoundResponse(w, r)
