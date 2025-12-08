@@ -1,6 +1,8 @@
 package service
 
-import "shuvoedward/Bible_project/internal/validator"
+import (
+	"shuvoedward/Bible_project/internal/validator"
+)
 
 // BibleValidator validates Bible references (books, chapters, verses, offsets)
 // Shared across Notes and Highlights
@@ -47,7 +49,9 @@ func (bv *BibleValidator) ValidateBook(
 	v.Check(chapter > 0 && chapter <= 150, "chapter", "must be between 1 and 150")
 
 	// Validate verses
-	v.Check(startVerse > 0 && startVerse <= 176, "start_verse", "must be between 1 and 176")
-	v.Check(endVerse > 0 && endVerse <= 176, "end_verse", "must be between 1 and 176")
-	v.Check(startVerse <= endVerse, "verse", "start verse must be less than or equal to end verse")
+	if startVerse != -1 && endVerse != -1 {
+		v.Check(startVerse > 0 && startVerse <= 176, "start_verse", "must be between 1 and 176")
+		v.Check(endVerse > 0 && endVerse <= 176, "end_verse", "must be between 1 and 176")
+		v.Check(startVerse <= endVerse, "verse", "start verse must be less than or equal to end verse")
+	}
 }
