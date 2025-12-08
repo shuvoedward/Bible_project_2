@@ -5,6 +5,20 @@ import (
 	"time"
 )
 
+type RateLimiters struct {
+	IP   *RateLimiter
+	Note *RateLimiter
+	Auth *RateLimiter
+}
+
+func NewRateLimiters(ipLimit, noteLimit, authLimit int, window time.Duration) *RateLimiters {
+	return &RateLimiters{
+		IP:   NewRateLimiter(ipLimit, window),
+		Note: NewRateLimiter(noteLimit, window),
+		Auth: NewRateLimiter(authLimit, window),
+	}
+}
+
 type RateLimiter struct {
 	requests map[string][]time.Time
 	mu       sync.RWMutex
