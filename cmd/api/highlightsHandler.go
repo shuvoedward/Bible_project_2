@@ -5,16 +5,23 @@ import (
 	"net/http"
 	"shuvoedward/Bible_project/internal/data"
 	"shuvoedward/Bible_project/internal/service"
+	"shuvoedward/Bible_project/internal/validator"
 
 	"github.com/julienschmidt/httprouter"
 )
 
-type HighlightHandler struct {
-	app     *application
-	service *service.HighlightService
+type HighlightServiceInterface interface {
+	DeleteHighlight(highlightID int64, userID int64) (*validator.Validator, error)
+	InsertHighlight(highlight *data.Highlight, userID int64) (*validator.Validator, error)
+	UpdateHighlight(highlightID int64, userID int64, color string) (*validator.Validator, error)
 }
 
-func NewHighlightHandler(app *application, service *service.HighlightService) *HighlightHandler {
+type HighlightHandler struct {
+	app     *application
+	service HighlightServiceInterface
+}
+
+func NewHighlightHandler(app *application, service HighlightServiceInterface) *HighlightHandler {
 	return &HighlightHandler{
 		app:     app,
 		service: service,

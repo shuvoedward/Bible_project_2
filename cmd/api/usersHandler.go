@@ -4,17 +4,24 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"shuvoedward/Bible_project/internal/data"
 	"shuvoedward/Bible_project/internal/service"
+	"shuvoedward/Bible_project/internal/validator"
 
 	"github.com/julienschmidt/httprouter"
 )
 
+type UserHandlerInterface interface {
+	ActivateUser(token string) (*data.User, error)
+	RegisterUser(name string, email string, password string) (*data.User, string, *validator.Validator, error)
+	UpdatePassword(tokenPlaintext string, password string) (*validator.Validator, error)
+}
 type UserHandler struct {
 	app     *application
-	service *service.UserService
+	service UserHandlerInterface
 }
 
-func NewUserHandler(app *application, service *service.UserService) *UserHandler {
+func NewUserHandler(app *application, service UserHandlerInterface) *UserHandler {
 	return &UserHandler{
 		app:     app,
 		service: service,
@@ -145,7 +152,7 @@ func (h *UserHandler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	v, err := h.service.UpdatePassword(input.TokenPlaintext, input.Password)
-	if !v.Valid() {
+	if v != nil && !v.Valid() {
 		h.app.failedValidationResponse(w, r, v.Errors)
 		return
 	}

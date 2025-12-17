@@ -4,17 +4,26 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"shuvoedward/Bible_project/internal/data"
 	"shuvoedward/Bible_project/internal/service"
+	"shuvoedward/Bible_project/internal/validator"
 
 	"github.com/julienschmidt/httprouter"
 )
 
-type TokenHandler struct {
-	app     *application
-	service *service.TokenService
+type TokenServiceInterface interface {
+	CreateActivationToken(email string) (string, string, *validator.Validator, error)
+	CreateAuthToken(email string, password string) (string, *validator.Validator, error)
+	CreatePasswordResetToken(email string) (string, string, *validator.Validator, error)
+	GetUserForToken(tokenPlainText string) (*data.User, error)
 }
 
-func NewTokenService(app *application, service *service.TokenService) *TokenHandler {
+type TokenHandler struct {
+	app     *application
+	service TokenServiceInterface
+}
+
+func NewTokenService(app *application, service TokenServiceInterface) *TokenHandler {
 	return &TokenHandler{
 		app:     app,
 		service: service,
@@ -77,7 +86,7 @@ func (h *TokenHandler) CreateAuthenticationToken(w http.ResponseWriter, r *http.
 		return
 	}
 
-	err = h.app.writeJSON(w, http.StatusCreated, envelope{"authentication_token": tokenPlaintext}, nil)
+	err = h.app.writeJSON(w, http.StatusCreated, envelope{"auth_token": tokenPlaintext}, nil)
 	if err != nil {
 		h.app.serverErrorResponse(w, r, err)
 	}

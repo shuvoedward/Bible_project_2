@@ -5,18 +5,30 @@ import (
 	"net/http"
 	"shuvoedward/Bible_project/internal/data"
 	"shuvoedward/Bible_project/internal/service"
+	"shuvoedward/Bible_project/internal/validator"
 	"strconv"
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
 )
 
-type NoteHandler struct {
-	app     *application
-	service *service.NoteService
+type NoteServiceInterface interface {
+	CreateNote(userID int64, input service.CreateNoteInput) (*data.NoteResponse, *validator.Validator, error)
+	DeleteLink(userID int64, noteID int64, locationID int64) (*validator.Validator, error)
+	DeleteNote(userID int64, noteID int64) error
+	GetNote(userID int64, noteID int64) (*data.NoteResponse, []*data.ImageData, error)
+	LinkNote(noteLinkLocation *data.NoteInputLocation) (*data.NoteResponse, *validator.Validator, error)
+	ListNotesMetadata(userID int64, input service.ListNotesInput) ([]*data.NoteMetadata, *validator.Validator, error)
+	SearchNotes(userID int64, input service.SearchInput) ([]*data.NoteSearchResponse, data.Metadata, *validator.Validator, error)
+	UpdateNote(content *data.NoteContent) (*data.NoteResponse, *validator.Validator, error)
 }
 
-func NewNoteHandler(app *application, noteService *service.NoteService) *NoteHandler {
+type NoteHandler struct {
+	app     *application
+	service NoteServiceInterface
+}
+
+func NewNoteHandler(app *application, noteService NoteServiceInterface) *NoteHandler {
 	return &NoteHandler{
 		app:     app,
 		service: noteService,

@@ -3,21 +3,32 @@ package main
 import (
 	"errors"
 	"net/http"
+	"shuvoedward/Bible_project/internal/data"
 	"shuvoedward/Bible_project/internal/service"
+	"shuvoedward/Bible_project/internal/validator"
 
 	"github.com/julienschmidt/httprouter"
 )
 
+type BookServiceInterface interface {
+	GetPassageWithUserData(userID int64, isAuthenticated bool, filter *data.LocationFilters) (*service.PassageResponse, *validator.Validator, error)
+	SearchVersesByWord(searchQuery string, filters data.Filters) ([]*data.VerseMatch, data.Metadata, error)
+}
+
+type AutocompleteInterface interface {
+	Autocomplete(query string) (*service.AutocompleteResult, error)
+}
+
 type BookHandler struct {
 	app                 *application
-	bookService         *service.BookService
-	autocompleteService *service.AutocompleteService
+	bookService         BookServiceInterface
+	autocompleteService AutocompleteInterface
 }
 
 func NewBookHandler(
 	app *application,
-	bookService *service.BookService,
-	autocompleteService *service.AutocompleteService,
+	bookService BookServiceInterface,
+	autocompleteService AutocompleteInterface,
 ) *BookHandler {
 	return &BookHandler{
 		app:                 app,

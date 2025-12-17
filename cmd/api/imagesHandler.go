@@ -6,17 +6,22 @@ import (
 	"net/http"
 	"shuvoedward/Bible_project/internal/data"
 	"shuvoedward/Bible_project/internal/service"
+	"shuvoedward/Bible_project/internal/validator"
 
 	"github.com/julienschmidt/httprouter"
 	_ "golang.org/x/image/webp"
 )
 
+type ImageHandlerInterface interface {
+	DeleteImage(s3Key string, userID int64, noteID int64) error
+	UploadImage(input service.UploadImageInput) (*data.ImageData, *validator.Validator, error)
+}
 type ImageHandler struct {
 	app     *application
-	service *service.ImageService
+	service ImageHandlerInterface
 }
 
-func NewImageHandler(app *application, service *service.ImageService) *ImageHandler {
+func NewImageHandler(app *application, service ImageHandlerInterface) *ImageHandler {
 	return &ImageHandler{
 		app:     app,
 		service: service,
