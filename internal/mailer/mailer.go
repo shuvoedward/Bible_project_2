@@ -49,13 +49,13 @@ func (m *Mailer) Send(recipient string, templateFile string, data any) error {
 	subject := new(bytes.Buffer)
 	err = textTmpl.ExecuteTemplate(subject, "subject", data)
 	if err != nil {
-		return err
+		return NewTemplateError("text template", err)
 	}
 
 	plainBody := new(bytes.Buffer)
 	err = textTmpl.ExecuteTemplate(plainBody, "plainbody", data)
 	if err != nil {
-		return err
+		return NewTemplateError("text template", err)
 	}
 
 	htmlTmpl, err := ht.New("").ParseFS(templateFS, "templates/"+templateFile)
@@ -66,7 +66,7 @@ func (m *Mailer) Send(recipient string, templateFile string, data any) error {
 	htmlBody := new(bytes.Buffer)
 	err = htmlTmpl.ExecuteTemplate(htmlBody, "htmlBody", data)
 	if err != nil {
-		return err
+		return NewTemplateError("html template", err)
 	}
 
 	msg := mail.NewMsg()
@@ -85,5 +85,9 @@ func (m *Mailer) Send(recipient string, templateFile string, data any) error {
 	msg.SetBodyString(mail.TypeTextPlain, plainBody.String())
 	msg.AddAlternativeString(mail.TypeTextHTML, htmlBody.String())
 
-	return m.client.DialAndSend(msg)
+	if err = m.client.DialAndSend(msg); err != nil {
+		return NewNetworkError("sending email", err)
+	}
+
+	return nil
 }
