@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"shuvoedward/Bible_project/internal/data"
 	"shuvoedward/Bible_project/internal/service"
@@ -11,17 +10,17 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-type UserHandlerInterface interface {
+type UserServiceInterface interface {
 	ActivateUser(token string) (*data.User, error)
-	RegisterUser(name string, email string, password string) (*data.User, string, *validator.Validator, error)
+	RegisterUser(name string, email string, password string) (*data.User, *validator.Validator, error)
 	UpdatePassword(tokenPlaintext string, password string) (*validator.Validator, error)
 }
 type UserHandler struct {
 	app     *application
-	service UserHandlerInterface
+	service UserServiceInterface
 }
 
-func NewUserHandler(app *application, service UserHandlerInterface) *UserHandler {
+func NewUserHandler(app *application, service UserServiceInterface) *UserHandler {
 	return &UserHandler{
 		app:     app,
 		service: service,
@@ -71,7 +70,7 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, tokenPlaintext, v, err := h.service.RegisterUser(input.Name, input.Email, input.Password)
+	user, v, err := h.service.RegisterUser(input.Name, input.Email, input.Password)
 
 	if v != nil && !v.Valid() {
 		h.app.failedValidationResponse(w, r, v.Errors)
@@ -81,18 +80,6 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 		h.handleUserError(w, r, err)
 		return
 	}
-
-	h.app.background(func() {
-		data := map[string]any{
-			"username":      user.Name,
-			"activationURL": fmt.Sprintf("http://localhost:4000/v1/users/activated/%s", tokenPlaintext),
-		}
-
-		err = h.app.mailer.Send(user.Email, "user_welcome.tmpl", data)
-		if err != nil {
-			h.app.logger.Error(err.Error())
-		}
-	})
 
 	err = h.app.writeJSON(w, http.StatusCreated, envelope{"user": user}, nil)
 	if err != nil {

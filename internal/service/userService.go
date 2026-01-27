@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"shuvoedward/Bible_project/internal/data"
+	"shuvoedward/Bible_project/internal/scheduler"
 	"shuvoedward/Bible_project/internal/validator"
 	"time"
 )
@@ -12,10 +13,11 @@ import (
 type UserService struct {
 	userModel  data.UserModel
 	tokenModel data.TokenModel
+	scheduler  *scheduler.Scheduler
 	logger     *slog.Logger
 }
 
-func NewUserService(userModel data.UserModel, tokenModel data.TokenModel, logger *slog.Logger) *UserService {
+func NewUserService(userModel data.UserModel, tokenModel data.TokenModel, scheduler *scheduler.Scheduler, logger *slog.Logger) *UserService {
 	return &UserService{
 		userModel:  userModel,
 		tokenModel: tokenModel,
@@ -25,7 +27,7 @@ func NewUserService(userModel data.UserModel, tokenModel data.TokenModel, logger
 
 // RegisterUser creates a new user account and token
 // Returns inserted user, plaintext token, validation and error
-func (s *UserService) RegisterUser(name, email, password string) (*data.User, string, *validator.Validator, error) {
+func (s *UserService) RegisterUser(name, email, password string) (*data.User, *validator.Validator, error) {
 	user := data.User{
 		Name:      name,
 		Email:     email,
@@ -34,21 +36,21 @@ func (s *UserService) RegisterUser(name, email, password string) (*data.User, st
 
 	v := validateUserRegistration(user, password)
 	if !v.Valid() {
-		return nil, "", v, nil
+		return nil, v, nil
 	}
 
 	err := user.Password.Set(password)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("hash password: %w", err)
+		return nil, nil, fmt.Errorf("hash password: %w", err)
 	}
 
 	err = s.userModel.Insert(&user)
 	if err != nil {
 		s.logger.Error("failed to register user", "email", email, "error", err)
 		if errors.Is(err, data.ErrDuplicateEmail) {
-			return nil, "", nil, ErrDuplicateEmail
+			return nil, nil, ErrDuplicateEmail
 		}
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	token, err := s.tokenModel.New(user.ID, 3*24*time.Hour, data.ScopeActivation)
@@ -56,10 +58,23 @@ func (s *UserService) RegisterUser(name, email, password string) (*data.User, st
 		s.logger.Error("failed to create activation token",
 			"user_id", user.ID,
 			"error", err)
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
-	return &user, token.Plaintext, nil, nil
+	task := scheduler.Task{
+		Type: scheduler.SendActivationEmail,
+		Data: scheduler.TaskEmailData{
+			UserName:      user.Name,
+			Email:         user.Email,
+			ActivationURL: fmt.Sprintf("http://localhost:4000/v1/users/activated/%s", token.Plaintext),
+		},
+		MaxRetries: 3,
+		CreatedAt:  time.Now(),
+	}
+
+	s.scheduler.Submit(task)
+
+	return &user, nil, nil
 }
 
 // ActivateUser activates a user based on token

@@ -30,6 +30,7 @@ import (
 	"shuvoedward/Bible_project/internal/mailer"
 	"shuvoedward/Bible_project/internal/ratelimit"
 	"shuvoedward/Bible_project/internal/s3Service"
+	"shuvoedward/Bible_project/internal/scheduler"
 	"shuvoedward/Bible_project/internal/service"
 	"strconv"
 	"sync"
@@ -88,7 +89,6 @@ type application struct {
 	config      config
 	logger      *slog.Logger
 	services    *service.Service
-	mailer      *mailer.Mailer
 	rateLimiter *ratelimit.RateLimiters
 	wg          *sync.WaitGroup
 }
@@ -128,6 +128,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	scheduler := scheduler.NewScheduler(10)
+	scheduler.Start()
+
 	// 4. Initialize data layer models
 	model := data.NewModels(db)
 
@@ -148,6 +151,7 @@ func main() {
 		books,
 		booksSearchIndex,
 		imgProcessor,
+		scheduler,
 	)
 
 	// 8. Initialize rate limiters
@@ -170,7 +174,6 @@ func main() {
 		config:      cfg,
 		logger:      logger,
 		services:    services,
-		mailer:      mailer,
 		rateLimiter: rateLimiters,
 		wg:          &sync.WaitGroup{},
 	}
@@ -246,7 +249,7 @@ func openMailer(cfg *config) (*mailer.Mailer, error) {
 func loadConfig(cfg *config) {
 	// Server
 	flag.IntVar(&cfg.port, "port", 4000, "API server port")
-	flag.StringVar(&cfg.env, "env", "production", "Environment (development|staging|production)")
+	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
 
 	// Database
 	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "PostgreSQL max open connection")

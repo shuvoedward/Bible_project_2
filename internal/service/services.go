@@ -5,6 +5,7 @@ import (
 	"shuvoedward/Bible_project/internal/cache"
 	"shuvoedward/Bible_project/internal/data"
 	"shuvoedward/Bible_project/internal/mailer"
+	"shuvoedward/Bible_project/internal/scheduler"
 )
 
 // Services contains all business logic services
@@ -16,6 +17,7 @@ type Service struct {
 	Book         *BookService
 	Autocomplete *AutocompleteService
 	Image        *ImageService
+	Scheduler    *scheduler.Scheduler
 }
 
 // NewServices creates all services with their dependencies
@@ -29,6 +31,7 @@ func NewServices(
 	books map[string]struct{},
 	booksSearchIndex map[string][]string,
 	imageProcessor ImageProcessor,
+	scheduler *scheduler.Scheduler,
 ) *Service {
 	noteValidator := NewNoteValidator(books)
 
@@ -43,12 +46,14 @@ func NewServices(
 		User: NewUserService(
 			models.Users,
 			models.Tokens,
+			scheduler,
 			logger,
 		),
 		Token: NewTokenService(
 			models.Tokens,
 			models.Users,
 			redisClient,
+			scheduler,
 			logger,
 		),
 		Highlight: NewHighlightService(

@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"shuvoedward/Bible_project/internal/data"
 	"shuvoedward/Bible_project/internal/service"
@@ -12,9 +11,9 @@ import (
 )
 
 type TokenServiceInterface interface {
-	CreateActivationToken(email string) (string, string, *validator.Validator, error)
+	CreateActivationToken(email string) (*validator.Validator, error)
 	CreateAuthToken(email string, password string) (string, *validator.Validator, error)
-	CreatePasswordResetToken(email string) (string, string, *validator.Validator, error)
+	CreatePasswordResetToken(email string) (*validator.Validator, error)
 	GetUserForToken(tokenPlainText string) (*data.User, error)
 }
 
@@ -23,7 +22,7 @@ type TokenHandler struct {
 	service TokenServiceInterface
 }
 
-func NewTokenService(app *application, service TokenServiceInterface) *TokenHandler {
+func NewTokenHandler(app *application, service TokenServiceInterface) *TokenHandler {
 	return &TokenHandler{
 		app:     app,
 		service: service,
@@ -115,7 +114,7 @@ func (h *TokenHandler) CreatePasswordResetToken(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	email, tokenPlaintext, v, err := h.service.CreatePasswordResetToken(input.Email)
+	v, err := h.service.CreatePasswordResetToken(input.Email)
 
 	if v != nil && !v.Valid() {
 		h.app.failedValidationResponse(w, r, v.Errors)
@@ -125,19 +124,6 @@ func (h *TokenHandler) CreatePasswordResetToken(w http.ResponseWriter, r *http.R
 		h.handleTokenError(w, r, err)
 		return
 	}
-
-	// TODO: change url based on production variable
-
-	h.app.background(func() {
-		data := map[string]any{
-			"passwordResetURL": fmt.Sprintf("http://localhost:4000/v1/users/password/%s", tokenPlaintext),
-		}
-
-		err := h.app.mailer.Send(email, "token_password_reset.tmpl", data)
-		if err != nil {
-			h.app.logger.Error(err.Error())
-		}
-	})
 
 	env := envelope{"message": "an email will be sent to you containing password reset instructions"}
 
@@ -170,22 +156,11 @@ func (h *TokenHandler) CreateActivationToken(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	tokenPlaintext, email, v, err := h.service.CreateActivationToken(input.Email)
+	v, err := h.service.CreateActivationToken(input.Email)
 	if v != nil && !v.Valid() {
 		h.app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
-
-	h.app.background(func() {
-		data := map[string]any{
-			"activationURL": fmt.Sprintf("http://localhost:4000/v1/users/activated/%s", tokenPlaintext),
-		}
-
-		err := h.app.mailer.Send(email, "token_activation.tmpl", data)
-		if err != nil {
-			h.app.logger.Error(err.Error())
-		}
-	})
 
 	env := envelope{"message": "an email will be sent to you containing activation instructions"}
 
