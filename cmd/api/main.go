@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"os"
 	"runtime"
@@ -39,6 +40,8 @@ import (
 	_ "shuvoedward/Bible_project/swagger"
 
 	_ "github.com/lib/pq"
+
+	_ "net/http/pprof"
 )
 
 var (
@@ -128,8 +131,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	scheduler := scheduler.NewScheduler(10)
+	scheduler := scheduler.NewScheduler(5)
+	fmt.Println("scheduler ")
 	scheduler.Start()
+
+	fmt.Println("scheduler opened")
 
 	// 4. Initialize data layer models
 	model := data.NewModels(db)
@@ -154,8 +160,10 @@ func main() {
 		scheduler,
 	)
 
+	rateLimitEnabled := cfg.env == "production"
 	// 8. Initialize rate limiters
 	rateLimiters := ratelimit.NewRateLimiters(
+		rateLimitEnabled,
 		cfg.limiter.ipRateLimit,
 		cfg.limiter.noteRateLimit,
 		cfg.limiter.authRatelimit,
@@ -180,6 +188,13 @@ func main() {
 
 	// 12. Create all handlers
 	handlers := NewHandlers(&app, services)
+
+	if cfg.env == "development" {
+		go func() {
+			logger.Info("starting pprof server", "port", 6060)
+			http.ListenAndServe("localhost:6060", nil)
+		}()
+	}
 
 	// 13. Start server
 	err = app.serve(handlers)

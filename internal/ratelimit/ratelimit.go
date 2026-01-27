@@ -6,16 +6,18 @@ import (
 )
 
 type RateLimiters struct {
-	IP   *RateLimiter
-	Note *RateLimiter
-	Auth *RateLimiter
+	Enabled bool
+	IP      *RateLimiter
+	Note    *RateLimiter
+	Auth    *RateLimiter
 }
 
-func NewRateLimiters(ipLimit, noteLimit, authLimit int, window time.Duration) *RateLimiters {
+func NewRateLimiters(enabled bool, ipLimit, noteLimit, authLimit int, window time.Duration) *RateLimiters {
 	return &RateLimiters{
-		IP:   NewRateLimiter(ipLimit, window),
-		Note: NewRateLimiter(noteLimit, window),
-		Auth: NewRateLimiter(authLimit, window),
+		Enabled: enabled,
+		IP:      NewRateLimiter(ipLimit, window),
+		Note:    NewRateLimiter(noteLimit, window),
+		Auth:    NewRateLimiter(authLimit, window),
 	}
 }
 
