@@ -36,7 +36,7 @@ func (s Scheduler) Start() {
 		go s.worker(s.TaskChannel)
 	}
 
-	s.processDelayedTasks()
+	go s.processDelayedTasks()
 }
 
 func (s Scheduler) worker(taskChannel <-chan Task) {
@@ -182,8 +182,9 @@ func (s Scheduler) processDelayedTasks() {
 			}
 
 			s.DelayedQueue.Pop()
-
 			s.Submit(task)
 		}
+
+		s.mu.Unlock()
 	}
 }
