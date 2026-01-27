@@ -120,6 +120,11 @@ func (app *application) metrics(next http.Handler) http.Handler {
 
 func (app *application) generalRateLimit(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !app.rateLimiter.Enabled {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		ip := getIP(r)
 		if !app.rateLimiter.IP.Allow(ip) {
 			app.rateLimitExceededResponse(w, r)
