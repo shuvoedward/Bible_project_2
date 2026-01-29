@@ -4,6 +4,8 @@
 
 Bible Notes API is a RESTful API designed to support Bible study, personal annotations, verse highlighting, and note management. It provides programmatic access to Bible text, passage lookup, highlights, and user notes, making it suitable for integration with web and mobile Bible study applications.
 
+**Note:** This is a learning project where I intentionally built infrastructure components (job scheduler, caching layer) from scratch to understand the underlying concepts rather than using off-the-shelf libraries.
+
 
 ## Why This Project?
 
@@ -35,6 +37,8 @@ This project pushed me into real-world backend development:
 - **Redis**: Caching strategies, token storage, TTL management
 - **API Design**: RESTful principles, authentication flows, versioning
 - **Production Skills**: Rate limiting, email integration (SMTP), cloud storage (S3)
+- **Concurrency Patterns**: Built a custom job scheduler with worker pools, min-heap priority queue, and exponential backoff retry
+- **High-Performance Caching**: Implemented Otter cache with singleflight pattern for request deduplication
 
 
 ## Features
@@ -56,6 +60,16 @@ This project pushed me into real-world backend development:
 - Token validation: 110μs → 25μs
 - Full-text search with PostgreSQL tsvector
 - Rate limiting with Redis atomic operations
+- **51,492 req/sec** for Bible verse retrieval with Otter cache + singleflight (0.2ms avg latency)
+
+## Custom-Built Infrastructure
+
+Built from scratch for learning purposes (no external job queue libraries):
+
+- **Job Scheduler**: Worker pool with goroutines and channels for async email delivery
+- **Delayed Retry Queue**: Min-heap priority queue (`container/heap`) for exponential backoff (2→4→8 min)
+- **Custom Error Types**: `MailerError` with `Retriable` flag for intelligent retry decisions
+- **Singleflight + Otter Cache**: Request deduplication prevents cache stampede on high-traffic endpoints
 
 ## Documentation
 - [Design](DESIGN.md)
@@ -111,6 +125,8 @@ This project pushed me into real-world backend development:
 
 - `cmd/api/` — Main application code and API endpoint handlers
 - `internal/data/` — Data models, queries, and business logic
+- `internal/scheduler/` — Custom job scheduler with worker pool and delayed retry queue
+- `internal/mailer/` — Email service with custom error types
 - `migrations/` — Database migration files
 - `docs/` — Swagger/OpenAPI auto-generated docs
 
