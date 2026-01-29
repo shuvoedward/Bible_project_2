@@ -3,8 +3,11 @@ package data
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 	"time"
+
+	"github.com/maypok86/otter/v2"
 )
 
 // Builds a map for fast book search
@@ -93,23 +96,52 @@ type VerseMatch struct {
 //		Word string
 //	}
 type passageModel struct {
-	DB *sql.DB
+	DB    *sql.DB
+	cache otter.Cache[string, *Passage]
 }
 
 func NewPassageModel(db *sql.DB) *passageModel {
-	return &passageModel{DB: db}
-}
+	cache := otter.Must(&otter.Options[string, *Passage]{
+		MaximumSize:       10_000,
+		ExpiryCalculator:  otter.ExpiryAccessing[string, *Passage](time.Hour),
+		RefreshCalculator: otter.RefreshWriting[string, *Passage](30 * time.Minute),
+	})
 
-func (p passageModel) Get(filters *LocationFilters) (*Passage, error) {
-	switch {
-	case filters.StartVerse != 0 && filters.EndVerse != 0:
-		return p.getVerseRange(filters)
-	default:
-		return p.getChapter(filters)
+	return &passageModel{
+		DB:    db,
+		cache: *cache,
 	}
 }
 
-func (p passageModel) getVerseRange(filters *LocationFilters) (*Passage, error) {
+func (p *passageModel) Get(filters *LocationFilters) (*Passage, error) {
+	key := buildPassageKey(filters)
+
+	loader := otter.LoaderFunc[string, *Passage](func(ctx context.Context, key string) (*Passage, error) {
+		switch {
+		case filters.StartVerse != -1 && filters.EndVerse != -1:
+			return p.getVerseRange(filters)
+		default:
+			return p.getChapter(filters)
+		}
+	})
+
+	passage, err := p.cache.Get(context.Background(), key, loader)
+	if err != nil {
+		return nil, err
+	}
+
+	return passage, nil
+}
+
+func buildPassageKey(filters *LocationFilters) string {
+	// Genesis:1:10-15
+	if filters.StartVerse != -1 && filters.EndVerse != -1 {
+		return fmt.Sprintf("%s:%d:%d-%d", filters.Book, filters.Chapter, filters.StartVerse, filters.EndVerse)
+	}
+	return fmt.Sprintf("%s:%d", filters.Book, filters.Chapter)
+}
+
+func (p *passageModel) getVerseRange(filters *LocationFilters) (*Passage, error) {
 	query := `
 			SELECT  
 				v.verse, v.text, v.id
@@ -125,7 +157,7 @@ func (p passageModel) getVerseRange(filters *LocationFilters) (*Passage, error) 
 	return p.queryVerses(query, filters.Book, filters.Chapter, filters.StartVerse, filters.EndVerse)
 }
 
-func (p passageModel) getChapter(filters *LocationFilters) (*Passage, error) {
+func (p *passageModel) getChapter(filters *LocationFilters) (*Passage, error) {
 	query := `
 			SELECT 
 				v.verse, v.text, v.id
@@ -140,7 +172,7 @@ func (p passageModel) getChapter(filters *LocationFilters) (*Passage, error) {
 	return p.queryVerses(query, filters.Book, filters.Chapter)
 }
 
-func (p passageModel) queryVerses(query string, args ...any) (*Passage, error) {
+func (p *passageModel) queryVerses(query string, args ...any) (*Passage, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -176,7 +208,7 @@ func (p passageModel) queryVerses(query string, args ...any) (*Passage, error) {
 	return passage, nil
 }
 
-func (p passageModel) SuggestWords(word string) ([]*WordMatch, error) {
+func (p *passageModel) SuggestWords(word string) ([]*WordMatch, error) {
 	// find word
 	query := `
 		SELECT DISTINCT ON (lexeme) word, lexeme, frequency
@@ -214,7 +246,7 @@ func (p passageModel) SuggestWords(word string) ([]*WordMatch, error) {
 	return words, nil
 }
 
-func (p passageModel) SuggestVerses(phrase string) ([]*VerseMatch, error) {
+func (p *passageModel) SuggestVerses(phrase string) ([]*VerseMatch, error) {
 	query := `
 		SELECT 
 			v.id, b.name, v.chapter, v.verse, v.text, 
@@ -290,7 +322,7 @@ func (p passageModel) SuggestVerses(phrase string) ([]*VerseMatch, error) {
 //   - []*VerseMatch: Slice of matching verses with relevance scores and snippets
 //   - Metadata: Pagination info (current page, total pages, total records, etc.)
 //   - error: Any error encountered during the search
-func (p passageModel) SearchVersesByWord(searchQuery string, filters Filters) ([]*VerseMatch, Metadata, error) {
+func (p *passageModel) SearchVersesByWord(searchQuery string, filters Filters) ([]*VerseMatch, Metadata, error) {
 	query := `
 	WITH counted AS (
 		SELECT 
