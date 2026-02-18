@@ -95,7 +95,7 @@ func (h *NoteHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	ip := getIP(r)
 	// Rate limit note creation by IP address
-	if !h.app.rateLimiter.IP.Allow(ip) {
+	if allowed, err := h.app.rateLimiter.IP.Allow(ip); !allowed || err != nil {
 		h.app.rateLimitExceededResponse(w, r)
 		return
 	}

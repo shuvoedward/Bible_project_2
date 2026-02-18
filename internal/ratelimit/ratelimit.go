@@ -1,99 +1,64 @@
 package ratelimit
 
 import (
-	"sync"
+	"context"
+	_ "embed"
+	"fmt"
+	"shuvoedward/Bible_project/internal/cache"
 	"time"
 )
 
-type RateLimiters struct {
+//go:embed scripts/slidingWindow.lua
+var slidingWindowScript string
+
+type Limiters struct {
 	Enabled bool
-	IP      *RateLimiter
-	Note    *RateLimiter
-	Auth    *RateLimiter
+	IP      *rateLimiter
+	Note    *rateLimiter
+	Auth    *rateLimiter
 }
 
-func NewRateLimiters(enabled bool, ipLimit, noteLimit, authLimit int, window time.Duration) *RateLimiters {
-	return &RateLimiters{
+func NewLimiters(enabled bool, ipLimit, noteLimit, authLimit int, cache *cache.RedisClient, window time.Duration) *Limiters {
+	return &Limiters{
 		Enabled: enabled,
-		IP:      NewRateLimiter(ipLimit, window),
-		Note:    NewRateLimiter(noteLimit, window),
-		Auth:    NewRateLimiter(authLimit, window),
+		IP:      newRateLimiter(ipLimit, window, cache, "ip"),
+		Note:    newRateLimiter(noteLimit, window, cache, "note"),
+		Auth:    newRateLimiter(authLimit, window, cache, "auth"),
 	}
 }
 
-type RateLimiter struct {
-	requests map[string][]time.Time
-	mu       sync.RWMutex
-	limit    int
-	window   time.Duration
+type rateLimiter struct {
+	cache  *cache.RedisClient
+	action string
+	limit  int
+	window time.Duration
 }
 
-func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
-	rl := &RateLimiter{
-		requests: make(map[string][]time.Time),
-		limit:    limit,
-		window:   window,
+func newRateLimiter(limit int, window time.Duration, cache *cache.RedisClient, action string) *rateLimiter {
+	rl := &rateLimiter{
+		cache:  cache,
+		action: action,
+		limit:  limit,
+		window: window,
 	}
-
-	go rl.cleanup()
 
 	return rl
 }
 
-func (rl *RateLimiter) Allow(ip string) bool {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
+func (rl *rateLimiter) Allow(ip string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	now := time.Now()
-	cutoff := now.Add(-rl.window)
+	key := fmt.Sprintf("rl:%s:%s", rl.action, ip)
+	windowMs := rl.window.Milliseconds()
 
-	timestamps := rl.requests[ip]
-
-	valid := []time.Time{}
-	for _, ts := range timestamps {
-		if ts.After(cutoff) {
-			valid = append(valid, ts)
-		}
+	result, err := rl.cache.Eval(ctx, slidingWindowScript, []string{key}, rl.limit, windowMs)
+	if err != nil {
+		return false, err
 	}
 
-	if len(valid) >= rl.limit {
-		rl.requests[ip] = valid
-		return false
-	}
+	vals := result.([]interface{})
+	allowed := vals[0].(int64) == 1
 
-	valid = append(valid, now)
-	rl.requests[ip] = valid
-
-	return true
-}
-
-func (rl *RateLimiter) cleanup() {
-	ticker := time.NewTicker(1 * time.Minute)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		rl.mu.Lock()
-		now := time.Now()
-		cutoff := now.Add(-rl.window)
-
-		for ip, timestamps := range rl.requests {
-
-			valid := []time.Time{}
-			for _, ts := range timestamps {
-				if ts.After(cutoff) {
-					valid = append(valid, ts)
-				}
-			}
-
-			// Remove entry if no recent requests
-			if len(valid) == 0 {
-				delete(rl.requests, ip)
-			} else {
-				rl.requests[ip] = valid
-			}
-
-		}
-
-		rl.mu.Unlock()
-	}
+	return allowed, nil
 }

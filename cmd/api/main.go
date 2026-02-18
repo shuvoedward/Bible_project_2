@@ -92,7 +92,7 @@ type application struct {
 	config      config
 	logger      *slog.Logger
 	services    *service.Service
-	rateLimiter *ratelimit.RateLimiters
+	rateLimiter *ratelimit.Limiters
 	wg          *sync.WaitGroup
 }
 
@@ -132,10 +132,7 @@ func main() {
 	}
 
 	scheduler := scheduler.NewScheduler(5)
-	fmt.Println("scheduler ")
 	scheduler.Start()
-
-	fmt.Println("scheduler opened")
 
 	// 4. Initialize data layer models
 	model := data.NewModels(db)
@@ -162,11 +159,12 @@ func main() {
 
 	rateLimitEnabled := cfg.env == "production"
 	// 8. Initialize rate limiters
-	rateLimiters := ratelimit.NewRateLimiters(
+	rateLimiters := ratelimit.NewLimiters(
 		rateLimitEnabled,
 		cfg.limiter.ipRateLimit,
 		cfg.limiter.noteRateLimit,
 		cfg.limiter.authRatelimit,
+		redisClient,
 		time.Minute,
 	)
 
