@@ -57,10 +57,10 @@ func BuildBookSearchIndex(allBooks []string) map[string][]string {
 }
 
 type PassageModel interface {
-	Get(filters *LocationFilters) (*Passage, error)
-	SuggestWords(word string) ([]*WordMatch, error)
-	SuggestVerses(phrase string) ([]*VerseMatch, error)
-	SearchVersesByWord(searchQuery string, filters Filters) ([]*VerseMatch, Metadata, error)
+	Get(ctx context.Context, filters *LocationFilters) (*Passage, error)
+	SuggestWords(ctx context.Context, word string) ([]*WordMatch, error)
+	SuggestVerses(ctx context.Context, phrase string) ([]*VerseMatch, error)
+	SearchVersesByWord(ctx context.Context, searchQuery string, filters Filters) ([]*VerseMatch, Metadata, error)
 }
 
 type VerseDetail struct {
@@ -113,7 +113,7 @@ func NewPassageModel(db *sql.DB) *passageModel {
 	}
 }
 
-func (p *passageModel) Get(filters *LocationFilters) (*Passage, error) {
+func (p *passageModel) Get(ctx context.Context, filters *LocationFilters) (*Passage, error) {
 	key := buildPassageKey(filters)
 
 	loader := otter.LoaderFunc[string, *Passage](func(ctx context.Context, key string) (*Passage, error) {
@@ -125,7 +125,7 @@ func (p *passageModel) Get(filters *LocationFilters) (*Passage, error) {
 		}
 	})
 
-	passage, err := p.cache.Get(context.Background(), key, loader)
+	passage, err := p.cache.Get(ctx, key, loader)
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +208,7 @@ func (p *passageModel) queryVerses(query string, args ...any) (*Passage, error) 
 	return passage, nil
 }
 
-func (p *passageModel) SuggestWords(word string) ([]*WordMatch, error) {
+func (p *passageModel) SuggestWords(ctx context.Context, word string) ([]*WordMatch, error) {
 	// find word
 	query := `
 		SELECT DISTINCT ON (lexeme) word, lexeme, frequency
@@ -217,9 +217,6 @@ func (p *passageModel) SuggestWords(word string) ([]*WordMatch, error) {
         ORDER BY lexeme, frequency DESC
         LIMIT 10
 	`
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
 
 	rows, err := p.DB.QueryContext(ctx, query, word)
 	if err != nil {
@@ -246,7 +243,7 @@ func (p *passageModel) SuggestWords(word string) ([]*WordMatch, error) {
 	return words, nil
 }
 
-func (p *passageModel) SuggestVerses(phrase string) ([]*VerseMatch, error) {
+func (p *passageModel) SuggestVerses(ctx context.Context, phrase string) ([]*VerseMatch, error) {
 	query := `
 		SELECT 
 			v.id, b.name, v.chapter, v.verse, v.text, 
@@ -264,9 +261,6 @@ func (p *passageModel) SuggestVerses(phrase string) ([]*VerseMatch, error) {
 			rank DESC
 		LIMIT 10;
 	`
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
 
 	rows, err := p.DB.QueryContext(ctx, query, phrase)
 	if err != nil {
@@ -322,7 +316,7 @@ func (p *passageModel) SuggestVerses(phrase string) ([]*VerseMatch, error) {
 //   - []*VerseMatch: Slice of matching verses with relevance scores and snippets
 //   - Metadata: Pagination info (current page, total pages, total records, etc.)
 //   - error: Any error encountered during the search
-func (p *passageModel) SearchVersesByWord(searchQuery string, filters Filters) ([]*VerseMatch, Metadata, error) {
+func (p *passageModel) SearchVersesByWord(ctx context.Context, searchQuery string, filters Filters) ([]*VerseMatch, Metadata, error) {
 	query := `
 	WITH counted AS (
 		SELECT 
@@ -352,9 +346,6 @@ func (p *passageModel) SearchVersesByWord(searchQuery string, filters Filters) (
 	LIMIT $2
 	OFFSET $3
 	`
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
 
 	rows, err := p.DB.QueryContext(ctx, query, searchQuery, filters.limit(), filters.offset())
 	if err != nil {

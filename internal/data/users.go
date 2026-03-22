@@ -14,7 +14,7 @@ var ErrDuplicateEmail = errors.New("duplicate email")
 
 type UserModel interface {
 	Insert(user *User) error
-	GetByEmail(email string) (*User, error)
+	GetByEmail(ctx context.Context, email string) (*User, error)
 	GetForToken(tokenPlainText, tokenScope string) (*User, error)
 	Update(user *User) error
 }
@@ -100,14 +100,11 @@ func (m userModel) Insert(user *User) error {
 
 }
 
-func (m userModel) GetByEmail(email string) (*User, error) {
+func (m userModel) GetByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
 		SELECT id, created_at, name, email, password_hash, activated, version
 		FROM users 
 		WHERE email = $1`
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
 
 	var user User
 

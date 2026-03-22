@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"shuvoedward/Bible_project/internal/data"
@@ -11,10 +12,10 @@ import (
 )
 
 type TokenServiceInterface interface {
-	CreateActivationToken(email string) (*validator.Validator, error)
-	CreateAuthToken(email string, password string) (string, *validator.Validator, error)
-	CreatePasswordResetToken(email string) (*validator.Validator, error)
-	GetUserForToken(tokenPlainText string) (*data.User, error)
+	CreateActivationToken(ctx context.Context, email string) (*validator.Validator, error)
+	CreateAuthToken(ctx context.Context, email string, password string) (string, *validator.Validator, error)
+	CreatePasswordResetToken(ctx context.Context, email string) (*validator.Validator, error)
+	GetUserForToken(ctx context.Context, tokenPlainText string) (*data.User, error)
 }
 
 type TokenHandler struct {
@@ -75,7 +76,9 @@ func (h *TokenHandler) CreateAuthenticationToken(w http.ResponseWriter, r *http.
 		return
 	}
 
-	tokenPlaintext, v, err := h.service.CreateAuthToken(input.Email, input.Password)
+	ctx := r.Context()
+
+	tokenPlaintext, v, err := h.service.CreateAuthToken(ctx, input.Email, input.Password)
 	if v != nil && !v.Valid() {
 		h.app.failedValidationResponse(w, r, v.Errors)
 		return
@@ -114,7 +117,9 @@ func (h *TokenHandler) CreatePasswordResetToken(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	v, err := h.service.CreatePasswordResetToken(input.Email)
+	ctx := r.Context()
+
+	v, err := h.service.CreatePasswordResetToken(ctx, input.Email)
 
 	if v != nil && !v.Valid() {
 		h.app.failedValidationResponse(w, r, v.Errors)
@@ -156,7 +161,9 @@ func (h *TokenHandler) CreateActivationToken(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	v, err := h.service.CreateActivationToken(input.Email)
+	ctx := r.Context()
+
+	v, err := h.service.CreateActivationToken(ctx, input.Email)
 	if v != nil && !v.Valid() {
 		h.app.failedValidationResponse(w, r, v.Errors)
 		return

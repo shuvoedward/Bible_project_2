@@ -1,8 +1,10 @@
 package service
 
 import (
+	"context"
 	"shuvoedward/Bible_project/internal/data"
 	"strings"
+	"time"
 )
 
 type AutocompleteService struct {
@@ -28,7 +30,7 @@ type AutocompleteResult struct {
 	Verses []*data.VerseMatch // For verse searches
 }
 
-func (s *AutocompleteService) Autocomplete(query string) (*AutocompleteResult, error) {
+func (s *AutocompleteService) Autocomplete(ctx context.Context, query string) (*AutocompleteResult, error) {
 	if query == "" {
 		return nil, ErrEmptyQuery
 	}
@@ -46,14 +48,16 @@ func (s *AutocompleteService) Autocomplete(query string) (*AutocompleteResult, e
 		result.Books = searchType.Suggestions
 
 	case "word":
-		words, err := s.passageModel.SuggestWords(searchType.Query)
+		words, err := s.passageModel.SuggestWords(ctx, searchType.Query)
 		if err != nil {
 			return nil, err
 		}
 		result.Words = words
 
 	case "verse":
-		verses, err := s.passageModel.SuggestVerses(searchType.Query)
+		ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		verses, err := s.passageModel.SuggestVerses(ctx, searchType.Query)
 		if err != nil {
 			return nil, err
 		}

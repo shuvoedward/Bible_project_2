@@ -8,7 +8,7 @@ import (
 
 type HighlightModel interface {
 	Insert(highlight *Highlight) error
-	Get(userID int64, filter *LocationFilters) ([]*Highlight, error)
+	Get(ctx context.Context, userID int64, filter *LocationFilters) ([]*Highlight, error)
 	Update(id, user_id int64, color string) error
 	Delete(id, userId int64) error
 }
@@ -68,7 +68,7 @@ func (m highlightModel) Insert(highlight *Highlight) error {
 
 }
 
-func (m highlightModel) Get(userID int64, filter *LocationFilters) ([]*Highlight, error) {
+func (m highlightModel) Get(ctx context.Context, userID int64, filter *LocationFilters) ([]*Highlight, error) {
 	if filter.StartVerse == 0 {
 		filter.StartVerse = 1
 		filter.EndVerse = 177
@@ -88,18 +88,13 @@ func (m highlightModel) Get(userID int64, filter *LocationFilters) ([]*Highlight
 			(start_verse <= $5 AND end_verse >= $4)	
 		)`
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	rows, err := m.DB.QueryContext(ctx, query, userID, filter.Book, filter.Chapter, filter.StartVerse, filter.EndVerse)
 	if err != nil {
 		return nil, err
-
 	}
 	defer rows.Close()
 
 	var highlights []*Highlight
-
 	for rows.Next() {
 		var temp Highlight
 		err := rows.Scan(

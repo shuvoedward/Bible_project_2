@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -37,7 +38,7 @@ func NewTokenService(
 
 // CreatePasswordResetToken validates email and creates password reset token for the user by their email
 // Returns the user email, plaintext token, validation and error
-func (s *TokenService) CreatePasswordResetToken(email string) (*validator.Validator, error) {
+func (s *TokenService) CreatePasswordResetToken(ctx context.Context, email string) (*validator.Validator, error) {
 	v := validator.New()
 
 	validateEmail(v, email)
@@ -45,7 +46,10 @@ func (s *TokenService) CreatePasswordResetToken(email string) (*validator.Valida
 		return v, nil
 	}
 
-	user, err := s.userModel.GetByEmail(email)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	user, err := s.userModel.GetByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, data.ErrRecordNotFound) {
 			return nil, ErrEmailNotFound
@@ -79,7 +83,7 @@ func (s *TokenService) CreatePasswordResetToken(email string) (*validator.Valida
 
 // CreateAuthToken validates user email and password and creates authentication token
 // Returns token plain text and validation and error
-func (s *TokenService) CreateAuthToken(email, password string) (string, *validator.Validator, error) {
+func (s *TokenService) CreateAuthToken(ctx context.Context, email, password string) (string, *validator.Validator, error) {
 	v := validator.New()
 	validateEmail(v, email)
 	validatePassword(v, password)
@@ -87,7 +91,10 @@ func (s *TokenService) CreateAuthToken(email, password string) (string, *validat
 		return "", v, nil
 	}
 
-	user, err := s.userModel.GetByEmail(email)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	user, err := s.userModel.GetByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, data.ErrRecordNotFound) {
 			return "", nil, ErrEmailNotFound
@@ -121,14 +128,17 @@ func (s *TokenService) CreateAuthToken(email, password string) (string, *validat
 
 // CreateActivationToken validates email and creates activation token. Also validates if user exists
 // Returns token plaintext, user's email, validatoin and error
-func (s *TokenService) CreateActivationToken(email string) (*validator.Validator, error) {
+func (s *TokenService) CreateActivationToken(ctx context.Context, email string) (*validator.Validator, error) {
 	v := validator.New()
 	validateEmail(v, email)
 	if !v.Valid() {
 		return nil, ErrEmailNotFound
 	}
 
-	user, err := s.userModel.GetByEmail(email)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	user, err := s.userModel.GetByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, data.ErrRecordNotFound) {
 			return nil, ErrEmailNotFound
@@ -161,14 +171,17 @@ func (s *TokenService) CreateActivationToken(email string) (*validator.Validator
 	return nil, nil
 }
 
-func (s *TokenService) GetUserForToken(tokenPlainText string) (*data.User, error) {
+func (s *TokenService) GetUserForToken(ctx context.Context, tokenPlainText string) (*data.User, error) {
 	v := validator.New()
 	v.Check(len(tokenPlainText) == 26, "token", "must be 26 bytes long")
 	if !v.Valid() {
 		return nil, ErrInvalidToken
 	}
 
-	userDataStr, err := s.redis.GetForToken(tokenPlainText)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	userDataStr, err := s.GetForToken(tokenPlainText, ctx)
 	if err == nil {
 		// cache hit
 		// userId, activated
@@ -194,10 +207,36 @@ func (s *TokenService) GetUserForToken(tokenPlainText string) (*data.User, error
 		return nil, err
 	}
 
-	err = s.redis.SetToken(tokenPlainText, user.ID, user.Activated)
+	ctx, cancel = context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	err = s.SetToken(tokenPlainText, user.ID, user.Activated, ctx)
 	if err != nil {
 		s.logger.Error("failed to cache token", "error", err)
 	}
 
 	return user, nil
+}
+
+func (s *TokenService) GetForToken(token string, ctx context.Context) (string, error) {
+	key := fmt.Sprintf("token:%s", token)
+
+	token, err := s.redis.Get(ctx, key)
+	if err != nil {
+		return "", fmt.Errorf("Err getting token: %v", err)
+	}
+
+	return token, nil
+}
+
+func (s *TokenService) SetToken(token string, userID int64, userActivated bool, ctx context.Context) error {
+	key := fmt.Sprintf("token:%s", token)
+
+	userData := fmt.Sprintf(`id:%d,activated:%t`, userID, userActivated)
+
+	err := s.redis.Set(ctx, key, userData, 2*time.Hour)
+	if err != nil {
+		return fmt.Errorf("Error setting user token: %v", err)
+	}
+
+	return nil
 }

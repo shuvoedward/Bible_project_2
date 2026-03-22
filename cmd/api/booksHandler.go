@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"shuvoedward/Bible_project/internal/data"
@@ -11,12 +12,12 @@ import (
 )
 
 type BookServiceInterface interface {
-	GetPassageWithUserData(userID int64, isAuthenticated bool, filter *data.LocationFilters) (*service.PassageResponse, *validator.Validator, error)
-	SearchVersesByWord(searchQuery string, filters data.Filters) ([]*data.VerseMatch, data.Metadata, error)
+	GetPassageWithUserData(ctx context.Context, userID int64, isAuthenticated bool, filter *data.LocationFilters) (*service.PassageResponse, *validator.Validator, error)
+	SearchVersesByWord(ctx context.Context, searchQuery string, filters data.Filters) ([]*data.VerseMatch, data.Metadata, error)
 }
 
 type AutocompleteInterface interface {
-	Autocomplete(query string) (*service.AutocompleteResult, error)
+	Autocomplete(ctx context.Context, query string) (*service.AutocompleteResult, error)
 }
 
 type BookHandler struct {
@@ -81,7 +82,9 @@ func (h *BookHandler) GetPassageWithUserData(w http.ResponseWriter, r *http.Requ
 		h.app.badRequestResponse(w, r, err)
 		return
 	}
-	response, v, err := h.bookService.GetPassageWithUserData(user.ID, user.Activated, filter)
+
+	ctx := r.Context()
+	response, v, err := h.bookService.GetPassageWithUserData(ctx, user.ID, user.Activated, filter)
 	if v != nil && !v.Valid() {
 		h.app.notFoundResponse(w, r)
 		return
@@ -116,7 +119,7 @@ func (h *BookHandler) Autocomplete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	autocomplete, err := h.autocompleteService.Autocomplete(query)
+	autocomplete, err := h.autocompleteService.Autocomplete(r.Context(), query)
 	if err != nil {
 		h.handlerBooksError(w, r, err)
 		return
@@ -154,7 +157,7 @@ func (h *BookHandler) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	verses, metadata, err := h.bookService.SearchVersesByWord(searchQuery, filters)
+	verses, metadata, err := h.bookService.SearchVersesByWord(r.Context(), searchQuery, filters)
 
 	if err != nil {
 		h.handlerBooksError(w, r, err)

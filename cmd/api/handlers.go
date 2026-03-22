@@ -19,7 +19,7 @@ func NewHandlers(app *application, services *service.Service) *Handlers {
 	return &Handlers{
 		Note:      NewNoteHandler(app, services.Note),
 		User:      NewUserHandler(app, services.User),
-		Token:     NewTokenService(app, services.Token),
+		Token:     NewTokenHandler(app, services.Token),
 		Highlight: NewHighlightHandler(app, services.Highlight),
 		Book:      NewBookHandler(app, services.Book, services.Autocomplete),
 		Image:     NewImageHandler(app, services.Image),

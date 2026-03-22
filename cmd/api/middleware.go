@@ -33,7 +33,9 @@ func (app *application) authenticate(next http.Handler) http.Handler {
 
 		token := headerParts[1]
 
-		user, err := app.services.Token.GetUserForToken(token)
+		ctx := r.Context()
+
+		user, err := app.services.Token.GetUserForToken(ctx, token)
 		if err != nil {
 			switch {
 			case errors.Is(err, service.ErrInvalidToken):

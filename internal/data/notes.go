@@ -23,7 +23,7 @@ var ErrLocationAlreadyLinked = errors.New("this note already linked to this loca
 var ErrDuplicateContent = errors.New("a note with this content already exists")
 
 type NoteModel interface {
-	GetAllLocatedForChapter(userID int64, filter *LocationFilters) ([]*NoteResponse, []*NoteResponse, error)
+	GetAllLocatedForChapter(ctx context.Context, userID int64, filter *LocationFilters) ([]*NoteResponse, []*NoteResponse, error)
 	Get(userID int64, id int64) (*NoteResponse, error)
 	GetAllMetadata(userID int64, filter *NoteQueryParams) ([]*NoteMetadata, error)
 	InsertLocated(content *NoteContent, location *NoteLocation) (*NoteResponse, error)
@@ -138,7 +138,7 @@ func hashContent(content string) string {
 //   - *NoteResponse: The retrieved Bible notes if found
 //   - *NoteResponse: The retrieved Cross-reference note if found
 //   - error: Any database error that occured.
-func (m noteModel) GetAllLocatedForChapter(userID int64, filter *LocationFilters) ([]*NoteResponse, []*NoteResponse, error) {
+func (m noteModel) GetAllLocatedForChapter(ctx context.Context, userID int64, filter *LocationFilters) ([]*NoteResponse, []*NoteResponse, error) {
 	// SQL query to join notes, their locations, and the book name.
 	// It selects notes that overlap with the requested verse range.
 	query := `
@@ -171,9 +171,6 @@ func (m noteModel) GetAllLocatedForChapter(userID int64, filter *LocationFilters
 			AND nl.start_verse <= $5
 			AND nl.end_verse >= $4
 			AND n.note_type IN ('CROSS_REFERENCE', 'BIBLE')`
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	args := []any{userID, filter.Book, filter.Chapter, filter.StartVerse, filter.EndVerse}
 
