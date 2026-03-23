@@ -44,6 +44,7 @@ func NewServices(
 			logger,
 		),
 		User: NewUserService(
+			models,
 			models.Users,
 			models.Tokens,
 			scheduler,

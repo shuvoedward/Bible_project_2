@@ -1,14 +1,18 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"shuvoedward/Bible_project/internal/data"
 	"time"
 )
 
+type DeleteExpiredTokenInterface interface {
+	DeleteExpiredTokens(ctx context.Context) (int64, error)
+}
 type backgroundTasks struct {
-	tokenModel data.TokenModel
-	logger     *slog.Logger
+	deleteToken DeleteExpiredTokenInterface
+	logger      *slog.Logger
 }
 
 func newBackgroundTasks(
@@ -16,8 +20,8 @@ func newBackgroundTasks(
 	logger *slog.Logger,
 ) *backgroundTasks {
 	return &backgroundTasks{
-		tokenModel: tokenModel,
-		logger:     logger,
+		deleteToken: tokenModel,
+		logger:      logger,
 	}
 }
 
@@ -37,7 +41,11 @@ func (bt *backgroundTasks) start() {
 }
 
 func (bt *backgroundTasks) cleanupExpiredTokens() {
-	_, err := bt.tokenModel.DeleteExpiredToken()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := bt.deleteToken.DeleteExpiredTokens(ctx)
+
 	if err != nil {
 		bt.logger.Error("failed to cleanup tokens", "error", err)
 	}

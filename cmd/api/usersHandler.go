@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"shuvoedward/Bible_project/internal/data"
@@ -11,9 +12,10 @@ import (
 )
 
 type UserServiceInterface interface {
-	ActivateUser(token string) (*data.User, error)
-	RegisterUser(name string, email string, password string) (*data.User, *validator.Validator, error)
-	UpdatePassword(tokenPlaintext string, password string) (*validator.Validator, error)
+	ActivateUser(ctx context.Context, token string) (*data.User, error)
+	RegisterUser(ctx context.Context, name string, email string, password string) (*data.User, *validator.Validator, error)
+
+	UpdatePassword(ctx context.Context, tokenPlaintext string, password string) (*validator.Validator, error)
 }
 type UserHandler struct {
 	app     *application
@@ -70,7 +72,7 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, v, err := h.service.RegisterUser(input.Name, input.Email, input.Password)
+	user, v, err := h.service.RegisterUser(r.Context(), input.Name, input.Email, input.Password)
 
 	if v != nil && !v.Valid() {
 		h.app.failedValidationResponse(w, r, v.Errors)
@@ -102,7 +104,7 @@ func (h *UserHandler) Activated(w http.ResponseWriter, r *http.Request) {
 	params := httprouter.ParamsFromContext(r.Context())
 	token := params.ByName("token")
 
-	user, err := h.service.ActivateUser(token)
+	user, err := h.service.ActivateUser(r.Context(), token)
 	if err != nil {
 		h.handleUserError(w, r, err)
 		return
@@ -138,7 +140,7 @@ func (h *UserHandler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	v, err := h.service.UpdatePassword(input.TokenPlaintext, input.Password)
+	v, err := h.service.UpdatePassword(r.Context(), input.TokenPlaintext, input.Password)
 	if v != nil && !v.Valid() {
 		h.app.failedValidationResponse(w, r, v.Errors)
 		return

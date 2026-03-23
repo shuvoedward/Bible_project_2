@@ -61,7 +61,7 @@ func (s *TokenService) CreatePasswordResetToken(ctx context.Context, email strin
 		return nil, ErrUserNotActivated
 	}
 
-	token, err := s.tokenModel.New(user.ID, 45*time.Minute, data.ScopePasswordReset)
+	token, err := s.tokenModel.New(ctx, user.ID, 45*time.Minute, data.ScopePasswordReset)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +111,7 @@ func (s *TokenService) CreateAuthToken(ctx context.Context, email, password stri
 		return "", nil, ErrPasswordNotMatch
 	}
 
-	token, err := s.tokenModel.New(user.ID, 24*time.Hour, data.ScopeAuthentication)
+	token, err := s.tokenModel.New(ctx, user.ID, 24*time.Hour, data.ScopeAuthentication)
 	if err != nil {
 		return "", nil, err
 	}
@@ -151,7 +151,7 @@ func (s *TokenService) CreateActivationToken(ctx context.Context, email string) 
 		return nil, ErrUserActivated
 	}
 
-	token, err := s.tokenModel.New(user.ID, 3*24*time.Hour, data.ScopeActivation)
+	token, err := s.tokenModel.New(ctx, user.ID, 3*24*time.Hour, data.ScopeActivation)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +199,7 @@ func (s *TokenService) GetUserForToken(ctx context.Context, tokenPlainText strin
 		}, nil
 	}
 
-	user, err := s.userModel.GetForToken(tokenPlainText, data.ScopeAuthentication)
+	user, err := s.userModel.GetForToken(ctx, tokenPlainText, data.ScopeAuthentication)
 	if err != nil {
 		if errors.Is(err, data.ErrRecordNotFound) {
 			return nil, ErrInvalidToken

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	"database/sql"
 	"time"
 )
 
@@ -15,10 +14,10 @@ const (
 )
 
 type TokenModel interface {
-	New(userID int64, ttl time.Duration, scope string) (*Token, error)
-	Insert(token *Token) error
-	DeleteAllForUser(scope string, id int64) error
-	DeleteExpiredToken() (int64, error)
+	New(ctx context.Context, userID int64, ttl time.Duration, scope string) (*Token, error)
+	Insert(ctx context.Context, token *Token) error
+	DeleteAllForUser(ctx context.Context, scope string, id int64) error
+	DeleteExpiredTokens(ctx context.Context) (int64, error)
 }
 
 type Token struct {
@@ -44,21 +43,21 @@ func generateToken(userID int64, ttl time.Duration, scope string) *Token {
 }
 
 type tokenModel struct {
-	DB *sql.DB
+	db DBTX
 }
 
-func NewTokenModel(db *sql.DB) *tokenModel {
-	return &tokenModel{DB: db}
+func NewTokenModel(db DBTX) TokenModel {
+	return &tokenModel{db}
 }
 
-func (m tokenModel) New(userID int64, ttl time.Duration, scope string) (*Token, error) {
+func (m tokenModel) New(ctx context.Context, userID int64, ttl time.Duration, scope string) (*Token, error) {
 	token := generateToken(userID, ttl, scope)
 
-	err := m.Insert(token)
+	err := m.Insert(ctx, token)
 	return token, err
 }
 
-func (m tokenModel) Insert(token *Token) error {
+func (m tokenModel) Insert(ctx context.Context, token *Token) error {
 	query := `
 		INSERT INTO tokens 
 			(hash, user_id, expiry, scope)
@@ -75,15 +74,15 @@ func (m tokenModel) Insert(token *Token) error {
 
 	args := []any{token.Hash, token.UserID, token.Expiry, token.Scope}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	_, err := m.DB.ExecContext(ctx, query, args...)
+	_, err := m.db.ExecContext(ctx, query, args...)
 
 	return err
 }
 
-func (m tokenModel) DeleteAllForUser(scope string, id int64) error {
+func (m tokenModel) DeleteAllForUser(ctx context.Context, scope string, id int64) error {
 	query := `
 		DELETE FROM 
 			tokens 
@@ -91,27 +90,24 @@ func (m tokenModel) DeleteAllForUser(scope string, id int64) error {
 			scope = $1 
 			AND user_id = $2`
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	_, err := m.DB.ExecContext(ctx, query, scope, id)
+	_, err := m.db.ExecContext(ctx, query, scope, id)
 	return err
 }
 
-func (m tokenModel) DeleteExpiredToken() (int64, error) {
+func (m tokenModel) DeleteExpiredTokens(ctx context.Context) (int64, error) {
 	query := `
 		DELETE FROM 
 			tokens
 		WHERE 
-			expiry < $1
-	`
+			expiry < NOW()`
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	now := time.Now()
-
-	result, err := m.DB.ExecContext(ctx, query, now)
+	result, err := m.db.ExecContext(ctx, query)
 	if err != nil {
 		return 0, err
 	}
@@ -119,5 +115,4 @@ func (m tokenModel) DeleteExpiredToken() (int64, error) {
 	rowsAffected, _ := result.RowsAffected()
 
 	return rowsAffected, nil
-
 }

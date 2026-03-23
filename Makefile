@@ -22,10 +22,12 @@ confirm:
 # ==================================================================================== #
 
 
+
 ## run/api: run cmd/api application
 .PHONY: run/api
 run/api:
-	go run ./cmd/api 
+	go run ./cmd/api
+
 
 ## db/psql: connect to the database using psql
 .PHONY: db/psql
@@ -82,6 +84,22 @@ build/api:
 	go build -ldflags='-s' -o=./bin/api ./cmd/api
 	GOOS=linux GOARCH=amd64 go build -ldflags='-s' -o=./bin/linux_amd64/api ./cmd/api
 
+
+# For production deployment  
+.PHONY: build/linux
+build/linux:
+	@echo "Building Linux binary with Docker..."
+	docker build --platform linux/amd64 -f Dockerfile.build -t bible-builder .
+	docker rm -f bible-extract 2>/dev/null || true
+	docker create --name bible-extract bible-builder
+	docker cp bible-extract:/app/bible-app ./bin/linux_amd64/api
+	docker rm bible-extract
+	@echo "Linux binary ready"
+
+
+.PHONY: run/production
+run/production: build/production
+	./bin/api
 
 # ==================================================================================== #
 # TEST

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -11,14 +12,22 @@ import (
 )
 
 type UserService struct {
+	models     data.Models
 	userModel  data.UserModel
 	tokenModel data.TokenModel
 	scheduler  *scheduler.Scheduler
 	logger     *slog.Logger
 }
 
-func NewUserService(userModel data.UserModel, tokenModel data.TokenModel, scheduler *scheduler.Scheduler, logger *slog.Logger) *UserService {
+func NewUserService(
+	models data.Models,
+	userModel data.UserModel,
+	tokenModel data.TokenModel,
+	scheduler *scheduler.Scheduler,
+	logger *slog.Logger,
+) *UserService {
 	return &UserService{
+		models:     models,
 		userModel:  userModel,
 		tokenModel: tokenModel,
 		logger:     logger,
@@ -27,7 +36,7 @@ func NewUserService(userModel data.UserModel, tokenModel data.TokenModel, schedu
 
 // RegisterUser creates a new user account and token
 // Returns inserted user, plaintext token, validation and error
-func (s *UserService) RegisterUser(name, email, password string) (*data.User, *validator.Validator, error) {
+func (s *UserService) RegisterUser(ctx context.Context, name, email, password string) (*data.User, *validator.Validator, error) {
 	user := data.User{
 		Name:      name,
 		Email:     email,
@@ -44,20 +53,29 @@ func (s *UserService) RegisterUser(name, email, password string) (*data.User, *v
 		return nil, nil, fmt.Errorf("hash password: %w", err)
 	}
 
-	err = s.userModel.Insert(&user)
+	var token *data.Token
+
+	err = s.models.WithTx(ctx, func(tx data.Models) error {
+		if err := tx.Users.Insert(ctx, &user); err != nil {
+			s.logger.Error("failed to register user", "email", email, "error", err)
+			return err
+		}
+
+		token, err = tx.Tokens.New(ctx, user.ID, 3*24*time.Hour, data.ScopeActivation)
+		if err != nil {
+			s.logger.Error("failed to create activation token",
+				"user_id", user.ID,
+				"error", err)
+			return err
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		s.logger.Error("failed to register user", "email", email, "error", err)
 		if errors.Is(err, data.ErrDuplicateEmail) {
 			return nil, nil, ErrDuplicateEmail
 		}
-		return nil, nil, err
-	}
-
-	token, err := s.tokenModel.New(user.ID, 3*24*time.Hour, data.ScopeActivation)
-	if err != nil {
-		s.logger.Error("failed to create activation token",
-			"user_id", user.ID,
-			"error", err)
 		return nil, nil, err
 	}
 
@@ -79,11 +97,11 @@ func (s *UserService) RegisterUser(name, email, password string) (*data.User, *v
 
 // ActivateUser activates a user based on token
 // Returns user data and error
-func (s *UserService) ActivateUser(token string) (*data.User, error) {
+func (s *UserService) ActivateUser(ctx context.Context, token string) (*data.User, error) {
 	// validate token
 	// Get user associated with the token
 	// Also validates if user exists
-	user, err := s.userModel.GetForToken(token, data.ScopeActivation)
+	user, err := s.userModel.GetForToken(ctx, token, data.ScopeActivation)
 	if err != nil {
 		if errors.Is(err, data.ErrRecordNotFound) {
 			return nil, ErrTokenNotFound
@@ -93,12 +111,12 @@ func (s *UserService) ActivateUser(token string) (*data.User, error) {
 
 	user.Activated = true
 
-	err = s.userModel.Update(user)
+	err = s.userModel.Update(ctx, user)
 	if err != nil {
 		return nil, err
 	}
 
-	err = s.tokenModel.DeleteAllForUser(data.ScopeActivation, user.ID)
+	err = s.tokenModel.DeleteAllForUser(ctx, data.ScopeActivation, user.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +126,7 @@ func (s *UserService) ActivateUser(token string) (*data.User, error) {
 
 // UpdatePassword validates and updates user password only. Deletes the password reset token for the user
 // Returns validation error and error
-func (s *UserService) UpdatePassword(tokenPlaintext, password string) (*validator.Validator, error) {
+func (s *UserService) UpdatePassword(ctx context.Context, tokenPlaintext, password string) (*validator.Validator, error) {
 	v := validator.New()
 	validatePassword(v, password)
 	validateToken(v, tokenPlaintext)
@@ -116,7 +134,7 @@ func (s *UserService) UpdatePassword(tokenPlaintext, password string) (*validato
 		return v, nil
 	}
 
-	user, err := s.userModel.GetForToken(data.ScopePasswordReset, tokenPlaintext)
+	user, err := s.userModel.GetForToken(ctx, data.ScopePasswordReset, tokenPlaintext)
 	if err != nil {
 		if errors.Is(err, data.ErrRecordNotFound) {
 			return nil, ErrTokenNotFound
@@ -129,12 +147,12 @@ func (s *UserService) UpdatePassword(tokenPlaintext, password string) (*validato
 		return nil, err
 	}
 
-	err = s.userModel.Update(user)
+	err = s.userModel.Update(ctx, user)
 	if err != nil {
 		return nil, err
 	}
 
-	err = s.tokenModel.DeleteAllForUser(data.ScopePasswordReset, user.ID)
+	err = s.tokenModel.DeleteAllForUser(ctx, data.ScopePasswordReset, user.ID)
 	if err != nil {
 		return nil, err
 	}

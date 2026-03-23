@@ -13,10 +13,10 @@ import (
 var ErrDuplicateEmail = errors.New("duplicate email")
 
 type UserModel interface {
-	Insert(user *User) error
+	Insert(ctx context.Context, user *User) error
 	GetByEmail(ctx context.Context, email string) (*User, error)
-	GetForToken(tokenPlainText, tokenScope string) (*User, error)
-	Update(user *User) error
+	GetForToken(ctx context.Context, tokenPlainText, tokenScope string) (*User, error)
+	Update(ctx context.Context, user *User) error
 }
 
 var AnonymousUser = &User{}
@@ -40,6 +40,7 @@ type password struct {
 	hash      []byte
 }
 
+// Set, hashes the password using bcrypt, stores the hash and plaintext password
 func (p *password) Set(plaintextPassword string) error {
 	hash, err := bcrypt.GenerateFromPassword([]byte(plaintextPassword), 12)
 	if err != nil {
@@ -66,27 +67,28 @@ func (p *password) Matches(plaintextPassword string) (bool, error) {
 }
 
 type userModel struct {
-	DB *sql.DB
+	db DBTX
 }
 
-func NewUserModel(db *sql.DB) *userModel {
-	return &userModel{
-		DB: db,
-	}
+func NewUserModel(db DBTX) UserModel {
+	return &userModel{db}
 }
 
-func (m userModel) Insert(user *User) error {
+func (m userModel) Insert(ctx context.Context, user *User) error {
 	query := `
-		INSERT INTO users (name, email, password_hash, activated)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, created_at, version`
+		INSERT INTO users 
+			(name, email, password_hash, activated)
+		VALUES 
+			($1, $2, $3, $4)
+		RETURNING 
+			id, created_at, version`
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	args := []any{user.Name, user.Email, user.Password.hash, user.Activated}
 
-	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&user.ID, &user.CreatedAt, &user.Version)
+	err := m.db.QueryRowContext(ctx, query, args...).Scan(&user.ID, &user.CreatedAt, &user.Version)
 	if err != nil {
 		switch {
 		case err.Error() == `pq: duplicate key value violates unique constraint "users_email_key"`:
@@ -97,18 +99,20 @@ func (m userModel) Insert(user *User) error {
 	}
 
 	return nil
-
 }
 
 func (m userModel) GetByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
-		SELECT id, created_at, name, email, password_hash, activated, version
-		FROM users 
-		WHERE email = $1`
+		SELECT 
+			id, created_at, name, email, password_hash, activated, version
+		FROM 
+			users 
+		WHERE 
+			email = $1`
 
 	var user User
 
-	err := m.DB.QueryRowContext(ctx, query, email).Scan(
+	err := m.db.QueryRowContext(ctx, query, email).Scan(
 		&user.ID,
 		&user.CreatedAt,
 		&user.Name,
@@ -130,7 +134,7 @@ func (m userModel) GetByEmail(ctx context.Context, email string) (*User, error) 
 	return &user, nil
 }
 
-func (m userModel) GetForToken(tokenPlainText, tokenScope string) (*User, error) {
+func (m userModel) GetForToken(ctx context.Context, tokenPlainText, tokenScope string) (*User, error) {
 	tokenHash := sha256.Sum256([]byte(tokenPlainText))
 
 	query := `
@@ -147,12 +151,12 @@ func (m userModel) GetForToken(tokenPlainText, tokenScope string) (*User, error)
 
 	args := []any{tokenHash[:], tokenScope, time.Now()}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	var user User
 
-	err := m.DB.QueryRowContext(ctx, query, args...).Scan(
+	err := m.db.QueryRowContext(ctx, query, args...).Scan(
 		&user.ID,
 		&user.CreatedAt,
 		&user.Name,
@@ -175,7 +179,7 @@ func (m userModel) GetForToken(tokenPlainText, tokenScope string) (*User, error)
 
 }
 
-func (m userModel) Update(user *User) error {
+func (m userModel) Update(ctx context.Context, user *User) error {
 	query := `
 		UPDATE 
 			users
@@ -194,10 +198,10 @@ func (m userModel) Update(user *User) error {
 		user.Version,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&user.Version)
+	err := m.db.QueryRowContext(ctx, query, args...).Scan(&user.Version)
 	if err != nil {
 		switch {
 		case err.Error() == `pq: duplicate key value violates unique constraint "users_email_key"`:
