@@ -96,21 +96,18 @@ type VerseMatch struct {
 //		Word string
 //	}
 type passageModel struct {
-	DB    *sql.DB
+	db    *sql.DB
 	cache otter.Cache[string, *Passage]
 }
 
-func NewPassageModel(db *sql.DB) *passageModel {
+func NewPassageModel(db *sql.DB) PassageModel {
 	cache := otter.Must(&otter.Options[string, *Passage]{
 		MaximumSize:       10_000,
 		ExpiryCalculator:  otter.ExpiryAccessing[string, *Passage](time.Hour),
 		RefreshCalculator: otter.RefreshWriting[string, *Passage](30 * time.Minute),
 	})
 
-	return &passageModel{
-		DB:    db,
-		cache: *cache,
-	}
+	return &passageModel{db, *cache}
 }
 
 func (p *passageModel) Get(ctx context.Context, filters *LocationFilters) (*Passage, error) {
@@ -176,7 +173,7 @@ func (p *passageModel) queryVerses(query string, args ...any) (*Passage, error) 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	rows, err := p.DB.QueryContext(ctx, query, args...)
+	rows, err := p.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +215,7 @@ func (p *passageModel) SuggestWords(ctx context.Context, word string) ([]*WordMa
         LIMIT 10
 	`
 
-	rows, err := p.DB.QueryContext(ctx, query, word)
+	rows, err := p.db.QueryContext(ctx, query, word)
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +259,7 @@ func (p *passageModel) SuggestVerses(ctx context.Context, phrase string) ([]*Ver
 		LIMIT 10;
 	`
 
-	rows, err := p.DB.QueryContext(ctx, query, phrase)
+	rows, err := p.db.QueryContext(ctx, query, phrase)
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +344,7 @@ func (p *passageModel) SearchVersesByWord(ctx context.Context, searchQuery strin
 	OFFSET $3
 	`
 
-	rows, err := p.DB.QueryContext(ctx, query, searchQuery, filters.limit(), filters.offset())
+	rows, err := p.db.QueryContext(ctx, query, searchQuery, filters.limit(), filters.offset())
 	if err != nil {
 		return nil, Metadata{}, err
 	}

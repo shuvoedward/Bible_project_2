@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"shuvoedward/Bible_project/internal/data"
@@ -11,9 +12,9 @@ import (
 )
 
 type HighlightServiceInterface interface {
-	DeleteHighlight(highlightID int64, userID int64) (*validator.Validator, error)
-	InsertHighlight(highlight *data.Highlight, userID int64) (*validator.Validator, error)
-	UpdateHighlight(highlightID int64, userID int64, color string) (*validator.Validator, error)
+	DeleteHighlight(ctx context.Context, highlightID int64, userID int64) (*validator.Validator, error)
+	InsertHighlight(ctx context.Context, highlight *data.Highlight, userID int64) (*validator.Validator, error)
+	UpdateHighlight(ctx context.Context, highlightID int64, userID int64, color string) (*validator.Validator, error)
 }
 
 type HighlightHandler struct {
@@ -66,7 +67,7 @@ func (h *HighlightHandler) Insert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	v, err := h.service.InsertHighlight(&highlight, user.ID)
+	v, err := h.service.InsertHighlight(r.Context(), &highlight, user.ID)
 	if v != nil && !v.Valid() {
 		h.app.failedValidationResponse(w, r, v.Errors)
 		return
@@ -117,7 +118,7 @@ func (h *HighlightHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	v, err := h.service.UpdateHighlight(highlightID, user.ID, input.Color)
+	v, err := h.service.UpdateHighlight(r.Context(), highlightID, user.ID, input.Color)
 	if v != nil && !v.Valid() {
 		h.app.failedValidationResponse(w, r, v.Errors)
 		return
@@ -161,7 +162,7 @@ func (h *HighlightHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	user := h.app.contextGetUser(r)
 
-	v, err := h.service.DeleteHighlight(highlightID, user.ID)
+	v, err := h.service.DeleteHighlight(r.Context(), highlightID, user.ID)
 	if v != nil && !v.Valid() {
 		h.app.failedValidationResponse(w, r, v.Errors)
 		return

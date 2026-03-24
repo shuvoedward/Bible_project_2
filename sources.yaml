@@ -1,0 +1,8 @@
+- name: bible_local
+  kind: postgres
+  conn_str: "postgresql://pgwatch:pgwatchsecret@host.docker.internal:5432/bible?sslmode=disable"
+  preset_metrics: exhaustive
+  is_enabled: true
+  custom_tags:
+    app: bible-api
+    env: development 

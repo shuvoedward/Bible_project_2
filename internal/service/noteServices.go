@@ -66,7 +66,7 @@ type CreateNoteInput struct {
 
 // CreateNote handles validation and insertion based on note type.
 // Returns validation errors, duplicate errors, or database errors.
-func (s *NoteService) CreateNote(userID int64, input CreateNoteInput) (*data.NoteResponse, *validator.Validator, error) {
+func (s *NoteService) CreateNote(ctx context.Context, userID int64, input CreateNoteInput) (*data.NoteResponse, *validator.Validator, error) {
 	// 1. Convert input to domain models
 	content := &data.NoteContent{
 		UserID:   userID,
@@ -95,9 +95,9 @@ func (s *NoteService) CreateNote(userID int64, input CreateNoteInput) (*data.Not
 
 	switch content.NoteType {
 	case "GENERAL":
-		note, err = s.noteModel.InsertGeneral(content)
+		note, err = s.noteModel.InsertGeneral(ctx, content)
 	case "BIBLE", "CROSS_REFERENCE":
-		note, err = s.noteModel.InsertLocated(content, location)
+		note, err = s.noteModel.InsertLocated(ctx, content, location)
 	default:
 		return nil, nil, ErrInvalidNoteType
 	}
@@ -116,9 +116,9 @@ func (s *NoteService) CreateNote(userID int64, input CreateNoteInput) (*data.Not
 // DeleteNote handles note deletion with S3 cleanup
 // Business Rule: Delete S3 images first, then database
 // Rationale: Prevent orphaned S3 objects that cose money
-func (s *NoteService) DeleteNote(userID, noteID int64) error {
+func (s *NoteService) DeleteNote(ctx context.Context, userID, noteID int64) error {
 	// 1. Check ownership (authorization)
-	exists, err := s.noteModel.ExistsForUser(noteID, userID)
+	exists, err := s.noteModel.ExistsForUser(ctx, noteID, userID)
 	if err != nil {
 		return fmt.Errorf("check note exists: %w", err)
 	}
@@ -128,7 +128,7 @@ func (s *NoteService) DeleteNote(userID, noteID int64) error {
 	}
 
 	// 2. Get all images associated with this note
-	images, err := s.imageModel.GetForNote(noteID)
+	images, err := s.imageModel.GetForNote(ctx, noteID)
 	if err != nil && !errors.Is(err, data.ErrRecordNotFound) {
 		s.logger.Error("failed to retrieve images for deletion",
 			"note_id", noteID,
@@ -138,14 +138,14 @@ func (s *NoteService) DeleteNote(userID, noteID int64) error {
 
 	// 3. Delete from s3 first (most likely to fail)
 	if len(images) > 0 {
-		if err := s.deleteImagesFromS3(images, noteID); err != nil {
+		if err := s.deleteImagesFromS3(ctx, images, noteID); err != nil {
 			// If S3 deletion fails, abort - don't touch database
 			return err
 		}
 	}
 
 	// 4. All S3 deletion successful - safe to delete from database
-	if err := s.noteModel.Delete(noteID, userID); err != nil {
+	if err := s.noteModel.Delete(ctx, noteID, userID); err != nil {
 		// S3 is deleted but DB failed - log for manual cleanup
 		s.logger.Error("DB deletion failed after S3 cleanup",
 			"note_id", noteID,
@@ -166,12 +166,12 @@ func (s *NoteService) DeleteNote(userID, noteID int64) error {
 
 // deleteImagesFromS3 deletes all images from S3 storage for specified note
 // Returns error if any deletion fails
-func (s *NoteService) deleteImagesFromS3(images []*data.ImageData, noteID int64) error {
+func (s *NoteService) deleteImagesFromS3(ctx context.Context, images []*data.ImageData, noteID int64) error {
 	var failedKeys []string
 
 	for _, image := range images {
 		// Create timeout context for each S3 operation
-		deleteCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		deleteCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		err := s.imageStore.DeleteImage(deleteCtx, image.S3Key)
 		cancel()
 
@@ -199,9 +199,9 @@ func (s *NoteService) deleteImagesFromS3(images []*data.ImageData, noteID int64)
 
 // GetNote retrieves a single specified note
 // Returns note, image data with presigned url with three hour, and error
-func (s *NoteService) GetNote(userID, noteID int64) (*data.NoteResponse, []*data.ImageData, error) {
+func (s *NoteService) GetNote(ctx context.Context, userID, noteID int64) (*data.NoteResponse, []*data.ImageData, error) {
 	// Retrieve note from database - automatically filters by user_id for security
-	note, err := s.noteModel.Get(userID, noteID)
+	note, err := s.noteModel.Get(ctx, userID, noteID)
 	if err != nil {
 		if errors.Is(err, data.ErrRecordNotFound) {
 			// Note doesn't exist or doesn't belong to this user
@@ -211,7 +211,7 @@ func (s *NoteService) GetNote(userID, noteID int64) (*data.NoteResponse, []*data
 	}
 
 	var imageData []*data.ImageData
-	imageData, err = s.imageModel.GetForNote(noteID)
+	imageData, err = s.imageModel.GetForNote(ctx, noteID)
 	if err != nil {
 		if !errors.Is(err, data.ErrRecordNotFound) {
 			// Log error but don't fail request if no images found
@@ -220,7 +220,7 @@ func (s *NoteService) GetNote(userID, noteID int64) (*data.NoteResponse, []*data
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	for _, image := range imageData {
@@ -237,14 +237,14 @@ func (s *NoteService) GetNote(userID, noteID int64) (*data.NoteResponse, []*data
 
 // UpdateNote validates and updates a specified note
 // Returns the updated note, validation and error
-func (s *NoteService) UpdateNote(content *data.NoteContent) (*data.NoteResponse, *validator.Validator, error) {
+func (s *NoteService) UpdateNote(ctx context.Context, content *data.NoteContent) (*data.NoteResponse, *validator.Validator, error) {
 
 	v := s.validator.ValidateUpdateNote(content)
 	if !v.Valid() {
 		return nil, v, nil
 	}
 
-	note, err := s.noteModel.Update(content)
+	note, err := s.noteModel.Update(ctx, content)
 	if err != nil {
 		if errors.Is(err, data.ErrRecordNotFound) {
 			// Could be: note doesn't exist, wrong user, OR wrong note_type
@@ -259,14 +259,14 @@ func (s *NoteService) UpdateNote(content *data.NoteContent) (*data.NoteResponse,
 
 // LinkNote validates and links a note to a given location
 // Returns linked note location, validation and error
-func (s *NoteService) LinkNote(noteLinkLocation *data.NoteInputLocation) (*data.NoteResponse, *validator.Validator, error) {
+func (s *NoteService) LinkNote(ctx context.Context, noteLinkLocation *data.NoteInputLocation) (*data.NoteResponse, *validator.Validator, error) {
 
 	v := s.validator.ValidateNoteLink(noteLinkLocation)
 	if !v.Valid() {
 		return nil, v, nil
 	}
 
-	linkedNote, err := s.noteModel.Link(noteLinkLocation)
+	linkedNote, err := s.noteModel.Link(ctx, noteLinkLocation)
 	if err != nil {
 		if errors.Is(err, data.ErrRecordNotFound) {
 			return nil, nil, ErrNoteNotFound
@@ -288,7 +288,7 @@ type ListNotesInput struct {
 }
 
 // ListNotesMetadata retrieves paginated notes with validation
-func (s *NoteService) ListNotesMetadata(userID int64, input ListNotesInput) ([]*data.NoteMetadata, *validator.Validator, error) {
+func (s *NoteService) ListNotesMetadata(ctx context.Context, userID int64, input ListNotesInput) ([]*data.NoteMetadata, *validator.Validator, error) {
 	// 1. Validate usering existing validator
 	v := validator.New()
 
@@ -319,7 +319,7 @@ func (s *NoteService) ListNotesMetadata(userID int64, input ListNotesInput) ([]*
 	}
 
 	// 3. Call repository
-	notesMetadata, err := s.noteModel.GetAllMetadata(userID, queryParams)
+	notesMetadata, err := s.noteModel.GetAllMetadata(ctx, userID, queryParams)
 	if err != nil {
 		s.logger.Error("failed to list notes", "user_id", userID, "error", err)
 		return nil, nil, fmt.Errorf("list notes: %w", err)
@@ -362,7 +362,7 @@ type SearchInput struct {
 
 // SearchNotes searches notes and validates search input.
 // Returns search notes results, metadata, validation and error
-func (s *NoteService) SearchNotes(userID int64, input SearchInput) ([]*data.NoteSearchResponse, data.Metadata, *validator.Validator, error) {
+func (s *NoteService) SearchNotes(ctx context.Context, userID int64, input SearchInput) ([]*data.NoteSearchResponse, data.Metadata, *validator.Validator, error) {
 	v := validator.New()
 
 	filter := data.Filters{
@@ -375,7 +375,7 @@ func (s *NoteService) SearchNotes(userID int64, input SearchInput) ([]*data.Note
 		return nil, data.Metadata{}, v, nil
 	}
 
-	results, metadata, err := s.noteModel.SearchNotes(userID, input.SearchQuery, &filter)
+	results, metadata, err := s.noteModel.SearchNotes(ctx, userID, input.SearchQuery, &filter)
 	if err != nil {
 		return nil, data.Metadata{}, nil, err
 	}
@@ -384,13 +384,13 @@ func (s *NoteService) SearchNotes(userID int64, input SearchInput) ([]*data.Note
 
 }
 
-func (s *NoteService) DeleteLink(userID, noteID, locationID int64) (*validator.Validator, error) {
+func (s *NoteService) DeleteLink(ctx context.Context, userID, noteID, locationID int64) (*validator.Validator, error) {
 	v := s.validator.validateDeleteLink(noteID, locationID, userID)
 	if !v.Valid() {
 		return v, nil
 	}
 
-	err := s.noteModel.DeleteLink(noteID, locationID, userID)
+	err := s.noteModel.DeleteLink(ctx, noteID, locationID, userID)
 	if err != nil {
 		if errors.Is(err, data.ErrRecordNotFound) {
 			return nil, ErrLinkNotFound

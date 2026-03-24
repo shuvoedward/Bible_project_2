@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"shuvoedward/Bible_project/internal/data"
@@ -23,7 +24,7 @@ func NewHighlightService(highlightModel data.HighlightModel, bibleValidator *Bib
 
 // InsertHighlight validates highlight inputs, creates a new highlight in the database
 // Returns validation and error, highlight is populated in place
-func (s *HighlightService) InsertHighlight(highlight *data.Highlight, userID int64) (*validator.Validator, error) {
+func (s *HighlightService) InsertHighlight(ctx context.Context, highlight *data.Highlight, userID int64) (*validator.Validator, error) {
 	// validation error
 	v := validator.New()
 
@@ -46,7 +47,7 @@ func (s *HighlightService) InsertHighlight(highlight *data.Highlight, userID int
 
 	highlight.UserID = &userID
 
-	err := s.highlightModel.Insert(highlight)
+	err := s.highlightModel.Insert(ctx, highlight)
 	if err != nil {
 		s.logger.Error("failed to create highlight", "user_id", userID, "error", err)
 		return nil, err
@@ -55,7 +56,7 @@ func (s *HighlightService) InsertHighlight(highlight *data.Highlight, userID int
 	return nil, nil
 }
 
-func (s *HighlightService) UpdateHighlight(highlightID, userID int64, color string) (*validator.Validator, error) {
+func (s *HighlightService) UpdateHighlight(ctx context.Context, highlightID, userID int64, color string) (*validator.Validator, error) {
 	v := validator.New()
 	v.Check(highlightID > 0, "highlightID", "must be valid")
 	v.Check(color != "", "color", "must be provided")
@@ -67,7 +68,7 @@ func (s *HighlightService) UpdateHighlight(highlightID, userID int64, color stri
 		return v, nil
 	}
 
-	err := s.highlightModel.Update(highlightID, userID, color)
+	err := s.highlightModel.Update(ctx, highlightID, userID, color)
 	if err != nil {
 		if errors.Is(err, data.ErrRecordNotFound) {
 			return nil, ErrHighlightNotFound
@@ -78,14 +79,14 @@ func (s *HighlightService) UpdateHighlight(highlightID, userID int64, color stri
 	return nil, nil
 }
 
-func (s *HighlightService) DeleteHighlight(highlightID, userID int64) (*validator.Validator, error) {
+func (s *HighlightService) DeleteHighlight(ctx context.Context, highlightID, userID int64) (*validator.Validator, error) {
 	v := validator.New()
 	v.Check(highlightID > 0, "highlightID", "must be valid")
 	if !v.Valid() {
 		return v, nil
 	}
 
-	err := s.highlightModel.Delete(highlightID, userID)
+	err := s.highlightModel.Delete(ctx, highlightID, userID)
 	if err != nil {
 		if errors.Is(err, data.ErrRecordNotFound) {
 			return nil, ErrHighlightNotFound

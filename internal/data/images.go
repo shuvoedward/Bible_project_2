@@ -8,9 +8,9 @@ import (
 )
 
 type ImageModel interface {
-	Insert(userID int64, input *ImageData) (*ImageData, error)
-	Delete(userID int64, noteID int64, s3Key string) error
-	GetForNote(noteID int64) ([]*ImageData, error)
+	Insert(ctx context.Context, userID int64, input *ImageData) (*ImageData, error)
+	Delete(ctx context.Context, userID int64, noteID int64, s3Key string) error
+	GetForNote(ctx context.Context, noteID int64) ([]*ImageData, error)
 }
 
 type ImageData struct {
@@ -27,15 +27,15 @@ type ImageData struct {
 }
 
 type imageModel struct {
-	DB *sql.DB
+	db *sql.DB
 }
 
-func NewImageModel(db *sql.DB) imageModel {
-	return imageModel{DB: db}
+func NewImageModel(db *sql.DB) ImageModel {
+	return imageModel{db}
 }
 
 // insert into the images table
-func (m imageModel) Insert(userID int64, input *ImageData) (*ImageData, error) {
+func (m imageModel) Insert(ctx context.Context, userID int64, input *ImageData) (*ImageData, error) {
 	query := `
 		INSERT INTO images	
 			(note_id, s3_key, width, height, file_size, mime_type, original_filename, created_at)
@@ -50,7 +50,7 @@ func (m imageModel) Insert(userID int64, input *ImageData) (*ImageData, error) {
 		RETURNING *
 	`
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	var response ImageData
@@ -58,7 +58,7 @@ func (m imageModel) Insert(userID int64, input *ImageData) (*ImageData, error) {
 	args := []any{userID, input.NoteID, input.S3Key, input.Width,
 		input.Height, input.FileSize, input.MimeType, input.OriginalFileName, input.CreatedAt}
 
-	err := m.DB.QueryRowContext(ctx, query, args...).Scan(
+	err := m.db.QueryRowContext(ctx, query, args...).Scan(
 		&response.ID, &response.NoteID, &response.S3Key, &response.Width, &response.Height,
 		&response.OriginalFileName, &response.MimeType, &response.FileSize, &response.CreatedAt,
 	)
@@ -76,7 +76,7 @@ func (m imageModel) Insert(userID int64, input *ImageData) (*ImageData, error) {
 // Delete removes an image record from the database
 // Returns ErrRecordNotFound if the image doesn't exist, doesn't belong to the note,
 // or the note doesn't belong to the user
-func (m imageModel) Delete(userID int64, noteID int64, s3Key string) error {
+func (m imageModel) Delete(ctx context.Context, userID int64, noteID int64, s3Key string) error {
 	query := `
 		DELETE FROM 
 			images i
@@ -89,10 +89,10 @@ func (m imageModel) Delete(userID int64, noteID int64, s3Key string) error {
 			AND i.s3_key = $3
 	`
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	result, err := m.DB.ExecContext(ctx, query, userID, noteID, s3Key)
+	result, err := m.db.ExecContext(ctx, query, userID, noteID, s3Key)
 	if err != nil {
 		return err
 	}
@@ -109,7 +109,7 @@ func (m imageModel) Delete(userID int64, noteID int64, s3Key string) error {
 	return nil
 }
 
-func (m imageModel) GetForNote(noteID int64) ([]*ImageData, error) {
+func (m imageModel) GetForNote(ctx context.Context, noteID int64) ([]*ImageData, error) {
 	query := `
 		SELECT 
 			* 
@@ -119,10 +119,10 @@ func (m imageModel) GetForNote(noteID int64) ([]*ImageData, error) {
 			note_id = $1 
 	`
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	rows, err := m.DB.QueryContext(ctx, query, noteID)
+	rows, err := m.db.QueryContext(ctx, query, noteID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrRecordNotFound

@@ -24,17 +24,17 @@ var ErrDuplicateContent = errors.New("a note with this content already exists")
 
 type NoteModel interface {
 	GetAllLocatedForChapter(ctx context.Context, userID int64, filter *LocationFilters) ([]*NoteResponse, []*NoteResponse, error)
-	Get(userID int64, id int64) (*NoteResponse, error)
-	GetAllMetadata(userID int64, filter *NoteQueryParams) ([]*NoteMetadata, error)
-	InsertLocated(content *NoteContent, location *NoteLocation) (*NoteResponse, error)
-	InsertGeneral(note *NoteContent) (*NoteResponse, error)
-	ExistsForUser(id int64, userID int64) (bool, error)
-	Delete(id int64, userID int64) error
-	Update(content *NoteContent) (*NoteResponse, error)
+	Get(ctx context.Context, userID int64, id int64) (*NoteResponse, error)
+	GetAllMetadata(ctx context.Context, userID int64, filter *NoteQueryParams) ([]*NoteMetadata, error)
+	InsertLocated(ctx context.Context, content *NoteContent, location *NoteLocation) (*NoteResponse, error)
+	InsertGeneral(ctx context.Context, note *NoteContent) (*NoteResponse, error)
+	ExistsForUser(ctx context.Context, id int64, userID int64) (bool, error)
+	Delete(ctx context.Context, id int64, userID int64) error
+	Update(ctx context.Context, content *NoteContent) (*NoteResponse, error)
 
-	DeleteLink(note_id, location_id, userID int64) error
-	Link(input *NoteInputLocation) (*NoteResponse, error)
-	SearchNotes(userID int64, word string, filter *Filters) ([]*NoteSearchResponse, Metadata, error)
+	DeleteLink(ctx context.Context, note_id, location_id, userID int64) error
+	Link(ctx context.Context, input *NoteInputLocation) (*NoteResponse, error)
+	SearchNotes(ctx context.Context, userID int64, word string, filter *Filters) ([]*NoteSearchResponse, Metadata, error)
 }
 
 type NoteContent struct {
@@ -112,11 +112,11 @@ type NoteQueryParams struct {
 	NoteType string
 }
 type noteModel struct {
-	DB *sql.DB
+	db *sql.DB
 }
 
-func NewNoteModel(db *sql.DB) *noteModel {
-	return &noteModel{DB: db}
+func NewNoteModel(db *sql.DB) NoteModel {
+	return &noteModel{db}
 }
 
 func hashContent(content string) string {
@@ -174,7 +174,7 @@ func (m noteModel) GetAllLocatedForChapter(ctx context.Context, userID int64, fi
 
 	args := []any{userID, filter.Book, filter.Chapter, filter.StartVerse, filter.EndVerse}
 
-	rows, err := m.DB.QueryContext(ctx, query, args...)
+	rows, err := m.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -249,7 +249,7 @@ func (m noteModel) GetAllLocatedForChapter(ctx context.Context, userID int64, fi
 //   - *NoteResponse: The retrieved note if found
 //   - error: ErrRecordNotFound if the note doesn't exist or doesn't belong to the user,
 //     or any other database error that occurred
-func (m noteModel) Get(userID int64, id int64) (*NoteResponse, error) {
+func (m noteModel) Get(ctx context.Context, userID int64, id int64) (*NoteResponse, error) {
 	query := `
 		SELECT 
 			id, user_id, title, content, note_type, created_at, updated_at
@@ -259,12 +259,12 @@ func (m noteModel) Get(userID int64, id int64) (*NoteResponse, error) {
 			notes.id = $1 
 			AND notes.user_id = $2`
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	var note NoteResponse
 
-	err := m.DB.QueryRowContext(ctx, query, id, userID).Scan(
+	err := m.db.QueryRowContext(ctx, query, id, userID).Scan(
 		&note.ID,
 		&note.UserID,
 		&note.Title,
@@ -297,7 +297,7 @@ func (m noteModel) Get(userID int64, id int64) (*NoteResponse, error) {
 // Returns:
 //   - []*NoteMetadata: Slice of retreived note
 //   - error: any database error that occured
-func (m noteModel) GetAllMetadata(userID int64, filter *NoteQueryParams) ([]*NoteMetadata, error) {
+func (m noteModel) GetAllMetadata(ctx context.Context, userID int64, filter *NoteQueryParams) ([]*NoteMetadata, error) {
 	query := fmt.Sprintf(`
 		SELECT 
 			id, title, 
@@ -313,12 +313,12 @@ func (m noteModel) GetAllMetadata(userID int64, filter *NoteQueryParams) ([]*Not
 		LIMIT $3
 		OFFSET $4`, filter.sortColumn(), filter.sortDirection())
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	args := []any{userID, filter.NoteType, filter.limit(), filter.offset()}
 
-	rows, err := m.DB.QueryContext(ctx, query, args...)
+	rows, err := m.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -351,7 +351,7 @@ func (m noteModel) GetAllMetadata(userID int64, filter *NoteQueryParams) ([]*Not
 	return notesMetadata, nil
 }
 
-func (m noteModel) Update(content *NoteContent) (*NoteResponse, error) {
+func (m noteModel) Update(ctx context.Context, content *NoteContent) (*NoteResponse, error) {
 	// Design: Content hashing strategy
 	// 	GENERAL notes:
 	//   - Same content allowed (different titles for context)
@@ -383,14 +383,14 @@ func (m noteModel) Update(content *NoteContent) (*NoteResponse, error) {
 		newHash = &hash
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	var responseNote NoteResponse
 
 	args := []any{content.ID, content.UserID, content.Title, content.Content, newHash, time.Now(), content.NoteType}
 
-	err := m.DB.QueryRowContext(ctx, query, args...).Scan(
+	err := m.db.QueryRowContext(ctx, query, args...).Scan(
 		&responseNote.ID,
 		&responseNote.Title,
 		&responseNote.Content,
@@ -433,7 +433,7 @@ func (m noteModel) Update(content *NoteContent) (*NoteResponse, error) {
 	return &responseNote, nil
 }
 
-func (m noteModel) InsertLocated(content *NoteContent, location *NoteLocation) (*NoteResponse, error) {
+func (m noteModel) InsertLocated(ctx context.Context, content *NoteContent, location *NoteLocation) (*NoteResponse, error) {
 	// BIBLE/CROSS_REFERENCE notes:
 	//   - Must hash content to prevent duplicate annotations on same verse
 	//   - Content must be unique (prevent spam/abuse)
@@ -488,10 +488,10 @@ func (m noteModel) InsertLocated(content *NoteContent, location *NoteLocation) (
 	insertArgs := []any{content.UserID, content.Title, content.Content, contentHash, content.NoteType,
 		location.Book, location.Chapter, location.StartVerse, location.EndVerse, location.StartOffset, location.EndOffset}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 6*time.Second)
 	defer cancel()
 
-	err := m.DB.QueryRowContext(ctx, insertQuery, insertArgs...).Scan(
+	err := m.db.QueryRowContext(ctx, insertQuery, insertArgs...).Scan(
 		&responseNote.ID, &responseNote.Title, &responseNote.Content, &responseNote.NoteType,
 		&responseNote.CreatedAt, &responseNote.UpdatedAt, &responseNote.Location.Book,
 		&responseNote.Location.Chapter, &responseNote.Location.StartVerse, &responseNote.Location.EndVerse,
@@ -509,7 +509,7 @@ func (m noteModel) InsertLocated(content *NoteContent, location *NoteLocation) (
 	return &responseNote, nil
 }
 
-func (m noteModel) InsertGeneral(note *NoteContent) (*NoteResponse, error) {
+func (m noteModel) InsertGeneral(ctx context.Context, note *NoteContent) (*NoteResponse, error) {
 	/*
 		GENERAL notes:
 		  - Same content allowed (different titles for context)
@@ -525,14 +525,14 @@ func (m noteModel) InsertGeneral(note *NoteContent) (*NoteResponse, error) {
 			id, title, content, note_type, created_at, updated_at
 	`
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	args := []any{note.UserID, note.Title, note.Content, note.NoteType}
 
 	var responseNote NoteResponse
 
-	err := m.DB.QueryRowContext(ctx, query, args...).Scan(
+	err := m.db.QueryRowContext(ctx, query, args...).Scan(
 		&responseNote.ID,
 		&responseNote.Title,
 		&responseNote.Content,
@@ -556,7 +556,7 @@ func (m noteModel) InsertGeneral(note *NoteContent) (*NoteResponse, error) {
 	return &responseNote, nil
 }
 
-func (m noteModel) ExistsForUser(id int64, userID int64) (bool, error) {
+func (m noteModel) ExistsForUser(ctx context.Context, id int64, userID int64) (bool, error) {
 	query := `
 		SELECT EXISTS(
 			SELECT 1
@@ -568,12 +568,12 @@ func (m noteModel) ExistsForUser(id int64, userID int64) (bool, error) {
 			)
 		`
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	var exists bool
 
-	err := m.DB.QueryRowContext(ctx, query, id, userID).Scan(&exists)
+	err := m.db.QueryRowContext(ctx, query, id, userID).Scan(&exists)
 	if err != nil {
 		return false, nil
 	}
@@ -582,7 +582,7 @@ func (m noteModel) ExistsForUser(id int64, userID int64) (bool, error) {
 
 }
 
-func (m noteModel) Delete(id int64, userID int64) error {
+func (m noteModel) Delete(ctx context.Context, id int64, userID int64) error {
 	query := `
 		DELETE FROM 
 			notes
@@ -591,10 +591,10 @@ func (m noteModel) Delete(id int64, userID int64) error {
 			AND user_id = $2
 		`
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	_, err := m.DB.ExecContext(ctx, query, id, userID)
+	_, err := m.db.ExecContext(ctx, query, id, userID)
 	if err != nil {
 		return err
 	}
@@ -605,7 +605,7 @@ func (m noteModel) Delete(id int64, userID int64) error {
 // Link creates a new location link for an existing note at the specified Bible verse location.
 // It validates that the note belongs to the user before creating the link.
 // Returns the note ID and the created location details.
-func (m noteModel) Link(input *NoteInputLocation) (*NoteResponse, error) {
+func (m noteModel) Link(ctx context.Context, input *NoteInputLocation) (*NoteResponse, error) {
 	// Use SELECT with JOIN to validate note ownership and book existence in single query.
 	// If note doesn't belong to user or book doesn't exist, no rows returned and insert fails.
 	query := `
@@ -630,13 +630,13 @@ func (m noteModel) Link(input *NoteInputLocation) (*NoteResponse, error) {
 	args := []any{input.NoteID, input.UserID, input.Book, input.Chapter, input.StartVerse,
 		input.EndVerse, input.StartOffset, input.EndOffset}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	var responseNote NoteResponse
 	responseNote.Location = &LocationResponse{}
 
-	err := m.DB.QueryRowContext(ctx, query, args...).Scan(
+	err := m.db.QueryRowContext(ctx, query, args...).Scan(
 		&responseNote.ID,
 		&responseNote.Location.Book,
 		&responseNote.Location.ID,
@@ -663,7 +663,7 @@ func (m noteModel) Link(input *NoteInputLocation) (*NoteResponse, error) {
 // DeleteLink removes a location link from a note.
 // Validates that the location belongs to the specified note and that the note belongs to the user.
 // Returns ErrRecordNotFound if the location doesn't exist or doesn't belong to the user's note.
-func (m noteModel) DeleteLink(note_id, location_id, userID int64) error {
+func (m noteModel) DeleteLink(ctx context.Context, note_id, location_id, userID int64) error {
 	// Join with notes table to verify note ownership before deleting the location.
 	// This prevents users from deleting locations of notes they don't own.
 	query := `
@@ -677,10 +677,10 @@ func (m noteModel) DeleteLink(note_id, location_id, userID int64) error {
 			AND n.user_id = $2
 		`
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	result, err := m.DB.ExecContext(ctx, query, location_id, userID, note_id)
+	result, err := m.db.ExecContext(ctx, query, location_id, userID, note_id)
 
 	if err != nil {
 		return err
@@ -702,7 +702,7 @@ func (m noteModel) DeleteLink(note_id, location_id, userID int64) error {
 // SearchNotes performs full-text search on user's notes using PostgreSQL's ts_rank and ts_headline.
 // Returns notes ordered by relevance with highlighted snippets showing matched terms.
 // The snippet contains 10-20 words with matched terms wrapped in <mark> tags.
-func (m noteModel) SearchNotes(userID int64, searchQuery string, filter *Filters) ([]*NoteSearchResponse, Metadata, error) {
+func (m noteModel) SearchNotes(ctx context.Context, userID int64, searchQuery string, filter *Filters) ([]*NoteSearchResponse, Metadata, error) {
 	query := `
 	WITH counted AS (
 		SELECT 
@@ -727,10 +727,10 @@ func (m noteModel) SearchNotes(userID int64, searchQuery string, filter *Filters
 		OFFSET $4
 	`
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	rows, err := m.DB.QueryContext(ctx, query, userID, searchQuery, filter.limit(), filter.offset())
+	rows, err := m.db.QueryContext(ctx, query, userID, searchQuery, filter.limit(), filter.offset())
 	if err != nil {
 		return nil, Metadata{}, err
 	}

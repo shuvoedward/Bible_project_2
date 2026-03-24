@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"shuvoedward/Bible_project/internal/data"
@@ -13,14 +14,14 @@ import (
 )
 
 type NoteServiceInterface interface {
-	CreateNote(userID int64, input service.CreateNoteInput) (*data.NoteResponse, *validator.Validator, error)
-	DeleteLink(userID int64, noteID int64, locationID int64) (*validator.Validator, error)
-	DeleteNote(userID int64, noteID int64) error
-	GetNote(userID int64, noteID int64) (*data.NoteResponse, []*data.ImageData, error)
-	LinkNote(noteLinkLocation *data.NoteInputLocation) (*data.NoteResponse, *validator.Validator, error)
-	ListNotesMetadata(userID int64, input service.ListNotesInput) ([]*data.NoteMetadata, *validator.Validator, error)
-	SearchNotes(userID int64, input service.SearchInput) ([]*data.NoteSearchResponse, data.Metadata, *validator.Validator, error)
-	UpdateNote(content *data.NoteContent) (*data.NoteResponse, *validator.Validator, error)
+	CreateNote(ctx context.Context, userID int64, input service.CreateNoteInput) (*data.NoteResponse, *validator.Validator, error)
+	DeleteLink(ctx context.Context, userID int64, noteID int64, locationID int64) (*validator.Validator, error)
+	DeleteNote(ctx context.Context, userID int64, noteID int64) error
+	GetNote(ctx context.Context, userID int64, noteID int64) (*data.NoteResponse, []*data.ImageData, error)
+	LinkNote(ctx context.Context, noteLinkLocation *data.NoteInputLocation) (*data.NoteResponse, *validator.Validator, error)
+	ListNotesMetadata(ctx context.Context, userID int64, input service.ListNotesInput) ([]*data.NoteMetadata, *validator.Validator, error)
+	SearchNotes(ctx context.Context, userID int64, input service.SearchInput) ([]*data.NoteSearchResponse, data.Metadata, *validator.Validator, error)
+	UpdateNote(ctx context.Context, content *data.NoteContent) (*data.NoteResponse, *validator.Validator, error)
 }
 
 type NoteHandler struct {
@@ -121,7 +122,7 @@ func (h *NoteHandler) Create(w http.ResponseWriter, r *http.Request) {
 		EndOffset:   input.EndOffset,
 	}
 
-	note, v, err := h.service.CreateNote(user.ID, serviceInput)
+	note, v, err := h.service.CreateNote(r.Context(), user.ID, serviceInput)
 	if v != nil && !v.Valid() {
 		h.app.failedValidationResponse(w, r, v.Errors)
 	}
@@ -184,7 +185,7 @@ func (h *NoteHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.service.DeleteNote(user.ID, noteID)
+	err = h.service.DeleteNote(r.Context(), user.ID, noteID)
 	if err != nil {
 		h.handleNoteError(w, r, err)
 	}
@@ -245,7 +246,7 @@ func (h *NoteHandler) Update(w http.ResponseWriter, r *http.Request) {
 		NoteType: input.NoteType,
 	}
 
-	note, v, err := h.service.UpdateNote(content)
+	note, v, err := h.service.UpdateNote(r.Context(), content)
 	if v != nil && !v.Valid() {
 		h.app.failedValidationResponse(w, r, v.Errors)
 	}
@@ -312,7 +313,7 @@ func (h *NoteHandler) Link(w http.ResponseWriter, r *http.Request) {
 		EndOffset:   input.EndOffset,
 	}
 
-	linkedNote, v, err := h.service.LinkNote(locationInput)
+	linkedNote, v, err := h.service.LinkNote(r.Context(), locationInput)
 	if v != nil && !v.Valid() {
 		h.app.failedValidationResponse(w, r, v.Errors)
 	}
@@ -358,7 +359,7 @@ func (h *NoteHandler) DeleteLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	v, err := h.service.DeleteLink(user.ID, noteID, locationID)
+	v, err := h.service.DeleteLink(r.Context(), user.ID, noteID, locationID)
 	if v != nil && !v.Valid() {
 		h.app.failedValidationResponse(w, r, v.Errors)
 		return
@@ -399,7 +400,7 @@ func (h *NoteHandler) ListNotesMetadata(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	notesMetadata, v, err := h.service.ListNotesMetadata(user.ID, input)
+	notesMetadata, v, err := h.service.ListNotesMetadata(r.Context(), user.ID, input)
 	if !v.Valid() {
 		h.app.failedValidationResponse(w, r, v.Errors)
 		return
@@ -440,7 +441,7 @@ func (h *NoteHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	note, images, err := h.service.GetNote(user.ID, notesID)
+	note, images, err := h.service.GetNote(r.Context(), user.ID, notesID)
 	if err != nil {
 		h.handleNoteError(w, r, err)
 	}
@@ -488,7 +489,7 @@ func (h *NoteHandler) SearchNote(w http.ResponseWriter, r *http.Request) {
 		PageSize:    pageSize,
 	}
 
-	results, metadata, v, err := h.service.SearchNotes(user.ID, searchInput)
+	results, metadata, v, err := h.service.SearchNotes(r.Context(), user.ID, searchInput)
 	if v != nil && !v.Valid() {
 		h.app.failedValidationResponse(w, r, v.Errors)
 	}

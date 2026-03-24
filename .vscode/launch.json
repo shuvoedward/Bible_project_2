@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Bible API",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/api",
+            "env": {
+                "BIBLE_DB_DSN": "postgres://bible:741258@localhost/bible?sslmode=disable",
+                "REDIS_HOST": "localhost",
+                "REDIS_PORT": "6379",
+                "REDIS_PASSWORD": ""
+            },
+            "args": ["-env=development"]
+        }
+    ]
+}

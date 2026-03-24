@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -13,8 +14,8 @@ import (
 )
 
 type ImageHandlerInterface interface {
-	DeleteImage(s3Key string, userID int64, noteID int64) error
-	UploadImage(input service.UploadImageInput) (*data.ImageData, *validator.Validator, error)
+	DeleteImage(ctx context.Context, s3Key string, userID int64, noteID int64) error
+	UploadImage(ctx context.Context, input service.UploadImageInput) (*data.ImageData, *validator.Validator, error)
 }
 type ImageHandler struct {
 	app     *application
@@ -96,7 +97,7 @@ func (h *ImageHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		OriginalFileName: fileHeader.Filename,
 	}
 
-	image, v, err := h.service.UploadImage(input)
+	image, v, err := h.service.UploadImage(r.Context(), input)
 	if v != nil && !v.Valid() {
 		h.app.failedValidationResponse(w, r, v.Errors)
 		return
@@ -142,7 +143,7 @@ func (h *ImageHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	// TODO: Add validation for s3Key format if needed
 	// e.g., check for empty string, valid characters, expected patterny
 
-	err = h.service.DeleteImage(s3Key, user.ID, noteID)
+	err = h.service.DeleteImage(r.Context(), s3Key, user.ID, noteID)
 	if err != nil {
 		h.handlerImageError(w, r, err)
 		return

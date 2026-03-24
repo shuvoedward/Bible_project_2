@@ -51,8 +51,8 @@ type UploadImageInput struct {
 
 // UploadImage handles teh complete image upload workflow
 // Returns: imageData, validator (if validations fails), error
-func (s *ImageService) UploadImage(input UploadImageInput) (*data.ImageData, *validator.Validator, error) {
-	s.noteModel.ExistsForUser(input.NoteID, input.UserID)
+func (s *ImageService) UploadImage(ctx context.Context, input UploadImageInput) (*data.ImageData, *validator.Validator, error) {
+	s.noteModel.ExistsForUser(ctx, input.NoteID, input.UserID)
 	// 1. Detect the actual content type based on file contents (magic bytes)
 	// WHY: Security - don't trust client-provided Content-Type header
 	// HOW: http.DetectContentType reads first 512 bytes
@@ -77,7 +77,7 @@ func (s *ImageService) UploadImage(input UploadImageInput) (*data.ImageData, *va
 	}
 
 	// 5. Upload to S3
-	uploadCtx, uploadCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	uploadCtx, uploadCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer uploadCancel()
 
 	s3Key, err := s.imageStorage.UploadImage(uploadCtx, processedImage, input.OriginalFileName, mimeType, input.UserID)
@@ -96,7 +96,7 @@ func (s *ImageService) UploadImage(input UploadImageInput) (*data.ImageData, *va
 		MimeType:         "image/webp", // after processing, its always WebP
 	}
 
-	imageResponse, err := s.imageModel.Insert(input.UserID, imageInput)
+	imageResponse, err := s.imageModel.Insert(ctx, input.UserID, imageInput)
 	if err != nil {
 		deleteCtx, deleteCancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer deleteCancel()
@@ -105,7 +105,7 @@ func (s *ImageService) UploadImage(input UploadImageInput) (*data.ImageData, *va
 	}
 
 	// 7. Generate presigned URL for immediate use
-	urlCtx, urlCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	urlCtx, urlCancel := context.WithTimeout(ctx, 3*time.Second)
 	defer urlCancel()
 
 	presignedURL, err := s.imageStorage.GeneratePresignedURL(urlCtx, s3Key, 3*time.Hour)
@@ -118,11 +118,11 @@ func (s *ImageService) UploadImage(input UploadImageInput) (*data.ImageData, *va
 	return imageResponse, nil, nil
 }
 
-func (s *ImageService) DeleteImage(s3Key string, userID, noteID int64) error {
+func (s *ImageService) DeleteImage(ctx context.Context, s3Key string, userID, noteID int64) error {
 	// 1. Delete from S3 first
 	// WHY: If S3 delete fails, we don't want orphaned DB records
 	// pointing to non-existent S3 objects
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	err := s.imageStorage.DeleteImage(ctx, s3Key)
@@ -132,7 +132,7 @@ func (s *ImageService) DeleteImage(s3Key string, userID, noteID int64) error {
 
 	// Delete image metadata from database
 	// This also verifies the user owns the note and the image exists
-	err = s.imageModel.Delete(userID, noteID, s3Key)
+	err = s.imageModel.Delete(ctx, userID, noteID, s3Key)
 	if err != nil {
 		return err
 	}
