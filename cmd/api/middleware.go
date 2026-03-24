@@ -139,6 +139,10 @@ func (app *application) generalRateLimit(next http.HandlerFunc) http.HandlerFunc
 
 func (app *application) authRateLimit(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !app.rateLimiter.Enabled {
+			next.ServeHTTP(w, r)
+			return
+		}
 		ip := getIP(r)
 		if allowed, err := app.rateLimiter.Auth.Allow(ip); !allowed || err != nil {
 			app.rateLimitExceededResponse(w, r)

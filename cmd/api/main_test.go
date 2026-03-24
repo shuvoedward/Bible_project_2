@@ -1,21 +1,24 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
+	"shuvoedward/Bible_project/internal/cache"
 	"shuvoedward/Bible_project/internal/data"
-	"shuvoedward/Bible_project/internal/mailer"
 	"shuvoedward/Bible_project/internal/ratelimit"
 	"shuvoedward/Bible_project/internal/service"
 	"shuvoedward/Bible_project/internal/validator"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/alicebob/miniredis/v2"
 )
 
 type mockUserService struct{}
 
-func (s *mockUserService) ActivateUser(token string) (*data.User, error) {
+func (s *mockUserService) ActivateUser(ctx context.Context, token string) (*data.User, error) {
 	if token == "invalid-token" {
 		return nil, service.ErrTokenNotFound
 	}
@@ -28,9 +31,9 @@ func (s *mockUserService) ActivateUser(token string) (*data.User, error) {
 	}, nil
 }
 
-func (s *mockUserService) RegisterUser(name, email, password string) (*data.User, string, *validator.Validator, error) {
+func (s *mockUserService) RegisterUser(ctx context.Context, name string, email string, password string) (*data.User, *validator.Validator, error) {
 	if email == "duplicate@example.com" {
-		return nil, "", nil, service.ErrDuplicateEmail
+		return nil, nil, service.ErrDuplicateEmail
 	}
 
 	user := &data.User{
@@ -41,10 +44,10 @@ func (s *mockUserService) RegisterUser(name, email, password string) (*data.User
 		CreatedAt: time.Now(),
 	}
 
-	return user, "mock-token-123", nil, nil
+	return user, nil, nil
 }
 
-func (s *mockUserService) UpdatePassword(tokenPlaintext, password string) (*validator.Validator, error) {
+func (s *mockUserService) UpdatePassword(ctx context.Context, tokenPlaintext, password string) (*validator.Validator, error) {
 	if tokenPlaintext == "invalid-token" {
 		return nil, service.ErrTokenNotFound
 	}
@@ -60,15 +63,15 @@ func (s *mockUserService) UpdatePassword(tokenPlaintext, password string) (*vali
 
 type mockTokenService struct{}
 
-func (s *mockTokenService) CreateActivationToken(email string) (string, string, *validator.Validator, error) {
+func (s *mockTokenService) CreateActivationToken(ctx context.Context, email string) (*validator.Validator, error) {
 	if email == "email-not-found" {
-		return "", "", nil, service.ErrEmailNotFound
+		return nil, service.ErrEmailNotFound
 	}
 
-	return "token-plaintext", "test@email.com", nil, nil
+	return nil, nil
 }
 
-func (s *mockTokenService) CreateAuthToken(email, password string) (string, *validator.Validator, error) {
+func (s *mockTokenService) CreateAuthToken(ctx context.Context, email, password string) (string, *validator.Validator, error) {
 	if email == "invalid-email" {
 		return "", nil, service.ErrEmailNotFound
 	}
@@ -80,15 +83,15 @@ func (s *mockTokenService) CreateAuthToken(email, password string) (string, *val
 	return "valid-token", nil, nil
 }
 
-func (s *mockTokenService) CreatePasswordResetToken(email string) (string, string, *validator.Validator, error) {
+func (s *mockTokenService) CreatePasswordResetToken(ctx context.Context, email string) (*validator.Validator, error) {
 	if email == "invalid-email" {
-		return "", "", nil, service.ErrEmailNotFound
+		return nil, service.ErrEmailNotFound
 	}
 
-	return "test@email.com", "valid-token", nil, nil
+	return nil, nil
 }
 
-func (s *mockTokenService) GetUserForToken(tokenPlainText string) (*data.User, error) {
+func (s *mockTokenService) GetUserForToken(ctx context.Context, tokenPlainText string) (*data.User, error) {
 	if tokenPlainText == "invalid-token" {
 		return nil, service.ErrInvalidToken
 	}
@@ -112,15 +115,28 @@ func TestMain(m *testing.M) {
 	booksSearchIndex["joh"] = []string{"John"}
 	booksSearchIndex["john"] = []string{"John"}
 
-	mockMailer, _ := mailer.NewMailer(
-		"smtp.example.com",
-		25,
-		"test",
-		"test",
-		"test@example.com",
-	)
+	// mockMailer, _ := mailer.NewMailer(
+	// 	"smtp.example.com",
+	// 	25,
+	// 	"test",
+	// 	"test",
+	// 	"test@example.com",
+	// )
+	mr, err := miniredis.Run()
+	if err != nil {
+		panic(err)
+	}
+	defer mr.Close()
 
-	mockRateLimiter := ratelimit.NewRateLimiters(100, 100, 100, time.Minute)
+	redisClient, err := cache.NewRedisClient(cache.RedisConfig{
+		Host: mr.Host(),
+		Port: mr.Port(),
+	}, time.Minute)
+	if err != nil {
+		panic(err)
+	}
+
+	mockRateLimiter := ratelimit.NewLimiters(false, 100, 100, 100, redisClient, time.Minute)
 
 	cfg := config{
 		port: 4000,
@@ -130,7 +146,6 @@ func TestMain(m *testing.M) {
 	testApp = &application{
 		config:      cfg,
 		logger:      slog.New(slog.NewTextHandler(os.Stdout, nil)),
-		mailer:      mockMailer,
 		rateLimiter: mockRateLimiter,
 		wg:          &sync.WaitGroup{},
 	}

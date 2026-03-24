@@ -1,9 +1,11 @@
 package data
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 )
 
 func TestUserModel_Insert(t *testing.T) {
@@ -14,13 +16,15 @@ func TestUserModel_Insert(t *testing.T) {
 	}
 
 	m := NewModels(testDB)
-	err = m.Users.Insert(testUser)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	err = m.Users.Insert(ctx, testUser)
 	if err != nil {
 		t.Fatalf("Failed to insert user: %v", err)
 	}
 	defer deleteUser(testUser.ID)
 
-	retrievedUser, err := m.Users.GetByEmail(testUser.Email)
+	retrievedUser, err := m.Users.GetByEmail(ctx, testUser.Email)
 	if err != nil {
 		t.Fatalf("GetByEmail() returned an error: %v", err)
 	}
@@ -31,20 +35,21 @@ func TestUserModel_Insert(t *testing.T) {
 }
 
 func TestUserModel_GetByEmail(t *testing.T) {
-
 	testUser, err := createTestUser()
 	if err != nil {
 		t.Fatalf("failed to set password: %v", err)
 	}
 
 	m := NewModels(testDB)
-	err = m.Users.Insert(testUser)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	err = m.Users.Insert(ctx, testUser)
 	if err != nil {
 		t.Fatalf("Failed to insert user: %v", err)
 	}
 	defer deleteUser(testUser.ID)
 
-	retrievedUser, err := m.Users.GetByEmail(testUser.Email)
+	retrievedUser, err := m.Users.GetByEmail(ctx, testUser.Email)
 	if err != nil {
 		t.Fatalf("GetByEmail() returned an error: %v", err)
 	}
@@ -53,7 +58,7 @@ func TestUserModel_GetByEmail(t *testing.T) {
 		t.Errorf("expected name to be %s, but got %s", testUser.Name, retrievedUser.Name)
 	}
 
-	_, err = m.Users.GetByEmail("nonexistent@example.com")
+	_, err = m.Users.GetByEmail(ctx, "nonexistent@example.com")
 	if !errors.Is(err, ErrRecordNotFound) {
 		t.Errorf("Expected sql.ErrNoRows for nonexistent email, but got %v", err)
 	}
