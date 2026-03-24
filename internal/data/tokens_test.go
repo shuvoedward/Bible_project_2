@@ -1,6 +1,7 @@
 package data
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"reflect"
@@ -20,13 +21,16 @@ func TestTokenModel_New(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to set password: %v", err)
 	}
-	err = m.Users.Insert(&testUser)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	err = m.Users.Insert(ctx, &testUser)
 	if err != nil {
 		t.Fatalf("Failed to insert user: %v", err)
 	}
 	defer deleteUser(testUser.ID)
 
-	testToken, err := m.Tokens.New(testUser.ID, 3*24*time.Hour, ScopeActivation)
+	testToken, err := m.Tokens.New(ctx, testUser.ID, 3*24*time.Hour, ScopeActivation)
 	if err != nil {
 		t.Fatalf("New() returned an error: %v", err)
 	}
@@ -67,19 +71,23 @@ func TestTokenModel_DeleteAllForUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to set password: %v", err)
 	}
-	err = m.Users.Insert(&testUser)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	err = m.Users.Insert(ctx, &testUser)
 	if err != nil {
 		t.Fatalf("Failed to insert user: %v", err)
 	}
 	defer deleteUser(testUser.ID)
 
-	testToken, err := m.Tokens.New(testUser.ID, 3*24*time.Hour, ScopeActivation)
+	testToken, err := m.Tokens.New(ctx, testUser.ID, 3*24*time.Hour, ScopeActivation)
 	if err != nil {
 		t.Fatalf("New() returned an error: %v", err)
 	}
 	defer deleteTestToken(testToken.UserID)
 
-	err = m.Tokens.DeleteAllForUser(ScopeActivation, testUser.ID)
+	err = m.Tokens.DeleteAllForUser(ctx, ScopeActivation, testUser.ID)
 	if err != nil {
 		t.Fatalf("DeleteAllForUser() returned err: %v", err)
 	}

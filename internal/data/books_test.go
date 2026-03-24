@@ -1,8 +1,10 @@
 package data
 
 import (
+	"context"
 	"log"
 	"testing"
+	"time"
 
 	"github.com/lib/pq"
 )
@@ -37,7 +39,11 @@ func TestGetChapter(t *testing.T) {
 	}
 
 	m := NewModels(testDB)
-	passage, err := m.Passages.Get(&filters)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	passage, err := m.Passages.Get(ctx, &filters)
 	if err != nil {
 		t.Fatalf("Get() returned an err %v", err)
 	}
@@ -97,7 +103,11 @@ func TestGetVerseRange(t *testing.T) {
 	}
 
 	m := NewModels(testDB)
-	passage, err := m.Passages.Get(&filter)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	passage, err := m.Passages.Get(ctx, &filter)
 	if err != nil {
 		t.Fatalf("Get() returned an error %v", err)
 	}

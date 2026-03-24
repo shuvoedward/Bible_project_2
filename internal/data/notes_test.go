@@ -1,8 +1,10 @@
 package data
 
 import (
+	"context"
 	"fmt"
 	"testing"
+	"time"
 )
 
 func TestGetAllLocatedForChapter(t *testing.T) {
@@ -71,9 +73,12 @@ func TestGetAllLocatedForChapter(t *testing.T) {
 		EndVerse:   4,
 	}
 
-	fmt.Println("here")
 	m := NewModels(testDB)
-	BibleNotes, crossRefNotes, err := m.Notes.GetAllLocatedForChapter(testUser.ID, &filter)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+
+	BibleNotes, crossRefNotes, err := m.Notes.GetAllLocatedForChapter(ctx, testUser.ID, &filter)
 	if err != nil {
 		t.Fatalf("GetAllLocatedForChapter() err: %v", err)
 	}
