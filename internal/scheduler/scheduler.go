@@ -66,82 +66,80 @@ func (s Scheduler) worker(taskChannel <-chan Task) {
 }
 
 func (s Scheduler) processTask(task Task) {
-	// identify tasks
-	if task.Type == SendActivationEmail && task.Retries < task.MaxRetries {
-		data, ok := task.Data.(TaskEmailData)
-		if !ok {
-			// stop
-		}
+	switch task.Type {
+	case SendActivationEmail:
+		s.sendActivationEmail(task)
+	case SendPasswordResetEmail:
+		s.sendPasswordResetEmail(task)
+	case SendTokenActivatoinEmail:
+		s.sendTokenActivatoinEmail(task)
+	}
+}
 
-		err := s.Mailer.Send(data.Email, "user_welcome.tmpl", map[string]any{
-			"username":      data.UserName,
-			"activationURL": data.ActivationURL,
-		})
+func (s Scheduler) sendActivationEmail(task Task) {
+	data, ok := task.Data.(TaskEmailData)
+	if !ok {
+		panic("Scheduler process task error, wrong data type, has to be 'TaskEmailData")
+	}
 
-		var mailerErr *mailer.MailerError
-		if errors.As(err, &mailerErr) {
-			s.Logger.Error("email failed",
-				"code", mailerErr.Code,
-				"retriable", mailerErr.Retrieable,
-				"metadata", mailerErr.Metadata,
-			)
+	if task.Retries < task.MaxRetries {
+		return
+	}
 
-			if mailerErr.Retrieable {
-				s.scheduleRetry(task)
-			} else {
-				// insert into dead list
-				s.DeadQueue = append(s.DeadQueue, task)
-			}
-		}
-	} else if task.Type == SendPasswordResetEmail && task.Retries < task.MaxRetries {
-		data, ok := task.Data.(TaskPasswordResetEmail)
-		if !ok {
-			// stop
-		}
+	err := s.Mailer.Send(data.Email, "user_welcome.tmpl", map[string]any{
+		"username":      data.UserName,
+		"activationURL": data.ActivationURL,
+	})
 
-		err := s.Mailer.Send(data.Email, "token_password_reset.tmpl", map[string]any{
-			"passwordResetURL": data.PasswordResetURL,
-		})
+	s.handleMailError(task, err)
+}
 
-		var mailerErr *mailer.MailerError
-		if errors.As(err, &mailerErr) {
-			s.Logger.Error("email failed",
-				"code", mailerErr.Code,
-				"retriable", mailerErr.Retrieable,
-				"metadata", mailerErr.Metadata,
-			)
+func (s Scheduler) sendPasswordResetEmail(task Task) {
+	data, ok := task.Data.(TaskPasswordResetEmail)
+	if !ok {
+		return
+	}
 
-			if mailerErr.Retrieable {
-				s.scheduleRetry(task)
-			} else {
-				// insert into dead list
-				s.DeadQueue = append(s.DeadQueue, task)
-			}
-		}
-	} else if task.Type == SendTokenActivatoinEmail && task.Retries < task.MaxRetries {
-		data, ok := task.Data.(TaskTokenActivationData)
-		if !ok {
-			// stop
-		}
+	if task.Retries < task.MaxRetries {
+		return
+	}
 
-		err := s.Mailer.Send(data.Email, "token_activation.tmpl", map[string]any{
-			"activationURL": data.ActivationURL,
-		})
+	err := s.Mailer.Send(data.Email, "token_password_reset.tmpl", map[string]any{
+		"passwordResetURL": data.PasswordResetURL,
+	})
 
-		var mailerErr *mailer.MailerError
-		if errors.As(err, &mailerErr) {
-			s.Logger.Error("email failed",
-				"code", mailerErr.Code,
-				"retriable", mailerErr.Retrieable,
-				"metadata", mailerErr.Metadata,
-			)
+	s.handleMailError(task, err)
+}
 
-			if mailerErr.Retrieable {
-				s.scheduleRetry(task)
-			} else {
-				// insert into dead list
-				s.DeadQueue = append(s.DeadQueue, task)
-			}
+func (s Scheduler) sendTokenActivatoinEmail(task Task) {
+	data, ok := task.Data.(TaskTokenActivationData)
+	if !ok {
+		return
+	}
+
+	if task.Retries < task.MaxRetries {
+		return
+	}
+	err := s.Mailer.Send(data.Email, "token_activation.tmpl", map[string]any{
+		"activationURL": data.ActivationURL,
+	})
+
+	s.handleMailError(task, err)
+}
+
+func (s Scheduler) handleMailError(task Task, err error) {
+	var mailerErr *mailer.MailerError
+	if errors.As(err, &mailerErr) {
+		s.Logger.Error("email failed",
+			"code", mailerErr.Code,
+			"retriable", mailerErr.Retrieable,
+			"metadata", mailerErr.Metadata,
+		)
+
+		if mailerErr.Retrieable {
+			s.scheduleRetry(task)
+		} else {
+			s.DeadQueue = append(s.DeadQueue, task)
 		}
 	}
 }
@@ -151,11 +149,12 @@ func (s Scheduler) scheduleRetry(task Task) {
 	if task.Retries < task.MaxRetries {
 		task.Retries++
 		// time period: 2 minutes after executedat,  updated executed at
-		if task.Retries == 1 {
+		switch task.Retries {
+		case 1:
 			task.ExecuteAt = task.CreatedAt.Add(2 * time.Minute)
-		} else if task.Retries == 2 {
+		case 2:
 			task.ExecuteAt = task.CreatedAt.Add(4 * time.Minute)
-		} else if task.Retries == 3 {
+		case 3:
 			task.ExecuteAt = task.CreatedAt.Add(8 * time.Minute)
 		}
 
