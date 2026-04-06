@@ -102,7 +102,7 @@ func main() {
 	loadConfig(&cfg)
 
 	// 2: Initialize logger
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 	// 3: Initialize infrastructure
 	db, err := openDB(cfg)
