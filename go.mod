@@ -1,10 +1,12 @@
 module shuvoedward/Bible_project
 
-go 1.25.0
+go 1.26.0
 
 require (
+	github.com/alicebob/miniredis/v2 v2.37.0
 	github.com/aws/aws-sdk-go-v2 v1.39.4
 	github.com/aws/aws-sdk-go-v2/config v1.31.15
+	github.com/aws/aws-sdk-go-v2/credentials v1.18.19
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.19.15
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.88.7
 	github.com/golang-migrate/migrate/v4 v4.19.0
@@ -12,6 +14,7 @@ require (
 	github.com/h2non/bimg v1.1.9
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/lib/pq v1.10.9
+	github.com/maypok86/otter/v2 v2.3.0
 	github.com/redis/go-redis/v9 v9.16.0
 	github.com/swaggo/http-swagger v1.3.4
 	github.com/swaggo/swag v1.16.6
@@ -22,9 +25,7 @@ require (
 
 require (
 	github.com/KyleBanks/depth v1.2.1 // indirect
-	github.com/alicebob/miniredis/v2 v2.37.0 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.2 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.18.19 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.11 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.11 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.11 // indirect
@@ -53,7 +54,6 @@ require (
 	github.com/go-openapi/swag/yamlutils v0.25.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
-	github.com/maypok86/otter/v2 v2.3.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/swaggo/files v0.0.0-20220610200504-28940afbdbfe // indirect
