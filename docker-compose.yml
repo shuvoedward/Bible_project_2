@@ -35,11 +35,14 @@ services:
       DB_SSLMODE: disable
       REDIS_HOST: redis
       REDIS_PORT: 6379
+    command: ["./bible-app", "-env=production"]
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_started
+      migrate:
+        condition: service_completed_successfully
 
   migrate:
     image: migrate/migrate
@@ -56,10 +59,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_started
-      migrate:
-        condition: service_completed_successfully
 
 volumes:
   postgres_data:
