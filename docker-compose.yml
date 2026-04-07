@@ -7,6 +7,7 @@ services:
       POSTGRES_DB: bible
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./bible_full_dump.sql:/docker-entrypoint-initdb.d/bible_full_dump.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U bible"]
       interval: 5s
@@ -41,24 +42,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-      migrate:
-        condition: service_completed_successfully
-
-  migrate:
-    image: migrate/migrate
-    volumes:
-      - ./migrations:/migrations
-    command:
-      [
-        "-path",
-        "/migrations",
-        "-database",
-        "postgres://bible:05.01.1996sA%40@db:5432/bible?sslmode=disable",
-        "up",
-      ]
-    depends_on:
-      db:
-        condition: service_healthy
 
 volumes:
   postgres_data:
