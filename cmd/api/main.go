@@ -283,6 +283,14 @@ func loadConfig(cfg *config) {
 	flag.StringVar(&cfg.smtp.password, "smtp-password", os.Getenv("SMTP_PASSWORD"), "SMTP password")
 	flag.StringVar(&cfg.smtp.sender, "smtp-sender", os.Getenv("SMTP_SENDER"), "SMTP sender")
 
+	flag.IntVar(&cfg.limiter.ipRateLimit, "ip-rate-limit", 200, "IP rate limit minutes")
+	flag.IntVar(&cfg.limiter.noteRateLimit, "note-rate-limit", 30, "Note rate limit in minutes")
+	flag.IntVar(&cfg.limiter.authRatelimit, "auth-rate-limit", 15, "Auth rate limit in minutes")
+
+	flag.StringVar(&cfg.corsTrustedOrigin, "cors-trusted-origin", "http://localhost:9000", "Cross Origin Trusted")
+
+	flag.Parse()
+
 	if cfg.env == "production" {
 		password := os.Getenv("DB_PASSWORD")
 		port := getEnvAsInt("DB_PORT", 5432)
@@ -295,16 +303,9 @@ func loadConfig(cfg *config) {
 			os.Getenv("DB_SSLMODE"),
 		)
 	} else {
-		flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("BIBLE_DB_DSN"), "PostgreSQL DSN")
+		cfg.db.dsn = os.Getenv("BIBLE_DB_DSN")
 	}
 
-	flag.IntVar(&cfg.limiter.ipRateLimit, "ip-rate-limit", 200, "IP rate limit minutes")
-	flag.IntVar(&cfg.limiter.noteRateLimit, "note-rate-limit", 30, "Note rate limit in minutes")
-	flag.IntVar(&cfg.limiter.authRatelimit, "auth-rate-limit", 15, "Auth rate limit in minutes")
-
-	flag.StringVar(&cfg.corsTrustedOrigin, "cors-trusted-origin", "http://localhost:9000", "Cross Origin Trusted")
-
-	flag.Parse()
 }
 
 func makeBooksMap() map[string]struct{} {
