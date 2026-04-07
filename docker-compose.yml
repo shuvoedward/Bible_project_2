@@ -53,7 +53,7 @@ services:
         "-path",
         "/migrations",
         "-database",
-        "postgres://bible:REDACTED@db:5432/bible?sslmode=disable",
+        "postgres://bible:05.01.1996sA%40@db:5432/bible?sslmode=disable",
         "up",
       ]
     depends_on:
