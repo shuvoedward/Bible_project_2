@@ -2,14 +2,14 @@ services:
   db:
     image: postgres:16
     environment:
-      POSTGRES_USER: bible
-      POSTGRES_PASSWORD: "REDACTED"
-      POSTGRES_DB: bible
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./bible_full_dump.sql:/docker-entrypoint-initdb.d/bible_full_dump.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bible"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -28,14 +28,14 @@ services:
     env_file:
       - .env
     environment:
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_USER: bible
-      DB_PASSWORD: "REDACTED"
-      DB_NAME: bible
-      DB_SSLMODE: disable
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_SSLMODE: ${DB_SSLMODE}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
     command: ["./bible-app", "-env=production"]
     depends_on:
       db:
