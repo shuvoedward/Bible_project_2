@@ -1,5 +1,8 @@
 # Bible Notes API
 
+**Live API:** https://biblenotesapi.dev  
+**Docs:** https://biblenotesapi.dev/swagger
+
 ## Overview
 
 Bible Notes API is a RESTful API designed to support Bible study, personal annotations, verse highlighting, and note management. It provides programmatic access to Bible text, passage lookup, highlights, and user notes, making it suitable for integration with web and mobile Bible study applications.
@@ -37,6 +40,7 @@ This project pushed me into real-world backend development:
 - **Redis**: Caching strategies, token storage, TTL management
 - **API Design**: RESTful principles, authentication flows, versioning
 - **Production Skills**: Rate limiting, email integration (SMTP), cloud storage (S3)
+- **Self-Hosted Deployment**: Dockerized the app with Docker Compose (Go + Postgres + Redis), deployed on Arch Linux, exposed publicly via Cloudflare Tunnel — no open ports, no cloud VM
 - **Concurrency Patterns**: Built a custom job scheduler with worker pools, min-heap priority queue, and exponential backoff retry
 - **High-Performance Caching**: Implemented Otter cache with singleflight pattern for request deduplication
 
@@ -74,7 +78,7 @@ Built from scratch for learning purposes (no external job queue libraries):
 ## Documentation
 - [Design](DESIGN.md)
 - [Architecture](docs/ARCHITECTURE.md)
-- [API](docs/API.md) or [Swagger UI](http://localhost:4000/swagger) for full documentation.
+- [API](docs/API.md) or [Swagger UI](https://biblenotesapi.dev/swagger) for full documentation.
 
 
 ## Getting Started
